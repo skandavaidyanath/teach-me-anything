@@ -1,0 +1,45 @@
+# Decisions
+
+Design decisions made so far, with the reasoning. Dated 2026-10-02 unless noted. Newer decisions supersede older ones where they conflict, and the superseded ones are marked.
+
+1. **The core object is a board, not a chat window.** The board is a structured document whose elements have ids and labels. The model drives it through ops, never through prose. This gives pacing, persistence, and cheap pointing for free.
+
+2. **A lesson is a sequence of beats.** Each beat introduces one idea and ends in one check. The schema enforces it. The model cannot dump five ideas because a beat ends at a check.
+
+3. **Checks have known expected answers and grade on the client.** Instant feedback at zero latency. The tutor's spoken reaction follows about a second later, which reads as a natural pause.
+
+4. **Checkpoints are engagement-aware.** If the learner has interrupted, pointed, or answered a micro-check recently, skip the "does that make sense?" If they have been passive for two or three beats, ask, and offer a cheap exit such as redoing it with an example.
+
+5. **The Planner writes the words ahead of time.** Supersedes an earlier design where a Tutor improvised narration just in time. The Planner streams a spine with the spoken text of the main path pre-written. Pre-synthesized audio means beat 1 starts about 100 ms after the calibration tap.
+
+6. **Branches are per-beat parallel jobs, never part of the spine stream.** Predicted questions, misconceptions, and remediation nodes come from a Brancher that fans out as each beat lands, alongside the Animator and TTS. The spine never waits.
+
+7. **Two kinds of visuals.** Declarative primitives are instant, op-driven, interactive, and hit-testable. Compiled compositions are slow and cinematic. The Animator builds only the second kind, and the Planner schedules them only where lead time exists. Beat 1 is primitives only.
+
+8. **Code-rendered animation, not generated video.** Remotion compositions written by the model, played in the browser, deterministic and seekable. Markers in the composition align to words in the narration via TTS word timestamps so pause, seek, and resume stay in sync.
+
+9. **Interruption is client-local and instant.** Starting to type is a soft interrupt that pauses at the next sentence boundary. Submitting is a hard interrupt. Navigation commands resolve from a local table in zero round trips. The server learns about the pause after it has happened.
+
+10. **Resume is a decision, not a default.** Continue, rewind, revise, or skip, each with a model-written bridge sentence. Pre-authored branch nodes carry their resume instruction. The lesson resumes automatically after an aside, and the learner can interrupt again.
+
+11. **A fast Dispatcher routes input over the lesson graph.** Its decision fields are fixed and its candidate list is dynamic. v0 uses a small Claude call with structured output. A calibrated classifier such as Jev is a candidate replacement behind the same interface.
+
+12. **A generative Responder covers what the graph did not predict.** v0 uses an Opus-class model at low effort. A diffusion model such as Mercury is a candidate for the in-scope tier behind the same interface. Tiering is a measured change.
+
+13. **Responder answers write back into the topic graph.** The graph for a topic gets richer with every learner and the fast-path hit rate rises. This is where content caching lives. Composition templates are deferred until logs show which shapes repeat.
+
+14. **The harness is code, not a model.** The workflow is fixed: plan, branch, build, play, observe. An LLM orchestrator would add latency and nondeterminism and buy nothing.
+
+15. **Text in, voice out for v0.** Voice output is cheap and changes how the product feels. Voice input with barge-in is its own project and lands in v1. The UI is designed for voice from day one: short on-screen text, the board carries the content.
+
+16. **Memory covers knowledge state and style preferences.** Knowledge state is a concept map with status, confidence, and evidence. Preferences are keyed traits with confidence and evidence that decay when unused. v0's Observer runs at session end only.
+
+17. **Scope is the single-concept lesson.** Three to ten minutes, four to eight beats. Courses, scheduling, and spaced review are a different product and are deferred.
+
+18. **The calibration question is also a latency mask.** It is asked while the Planner streams. Beat 1 is calibration-agnostic by rule. If the answer contradicts later beats, the harness replans from the first affected beat off the critical path.
+
+19. **Not building on praxis.** Its step-synchronous loop, per-call instantiation cost, and monorepo coupling do not fit a playhead-driven, latency-bound product. Ideas borrowed: per-role YAML config, the model gateway shape, replay logging, and the interrupt handshake lessons. See the praxis section of the v0 plan.
+
+20. **One model family, effort varied per role.** The Planner thinks at high effort, the Responder talks at low effort. Keeping one model keeps one prompt cache namespace. Switching models is a measured optimization, not a default.
+
+21. **References kept in mind, not adopted.** Context Language Models (arXiv 2609.37725) for the shared-workspace idea and model-kept notes. TypeSafe's Jev for calibrated structured decisions. Inception's Mercury for fast generation. None are v0 dependencies.

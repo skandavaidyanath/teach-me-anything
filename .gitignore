@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.pnpm-store/
+.venv/
+__pycache__/
+*.pyc
+
+# builds
+.next/
+dist/
+build/
+out/
+.turbo/
+
+# env and secrets
+.env
+.env.*
+!.env.example
+
+# local data
+*.sqlite
+*.db
+data/local/
+logs/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
