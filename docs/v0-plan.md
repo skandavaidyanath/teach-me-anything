@@ -34,7 +34,7 @@ Reliability on the 10 seed topics:
 - Composition compile success at least 80% on first attempt and 95% after retries. Static fallback otherwise, never a blank stage.
 - Every beat has exactly one idea and ends in exactly one check. Enforced by schema validation on the Planner output.
 
-Qualitative: five people each take two lessons and compare against asking a chatbot the same question. We want a clear majority to prefer the lesson and to be able to say why.
+Learning outcomes: measured by the protocol in [measurement.md](measurement.md), a within-subject comparison against a strong chatbot with pre, post, and delayed tests and a calibration measure. In v0 we run the protocol on five to ten people to build and debug the instrument. The claim itself is tested in v1 at thirty to forty people. v0 does not claim victory on preference alone.
 
 ## In scope
 
@@ -129,7 +129,7 @@ Each milestone has an exit criterion you can check in five minutes.
 
 **M2, animations and the graph.** Animator pipeline with compile, validate, retry, fallback. Brancher fan-out. Lesson graph persistence. Responder write-back. Exit: the split-tree animation plays in a live merge sort lesson, a predicted question hits the fast path, and an unpredicted one becomes a node for the next run.
 
-**M3, measure and dogfood.** Observer and learner profile. Synthetic learner across all 10 topics. Latency budget report. Five dogfood sessions. Exit: the latency table is met at p95, and the dogfood notes tell us what v1 is.
+**M3, measure and dogfood.** Observer and learner profile. Synthetic learner across all 10 topics. Latency budget report. The measurement instrument from measurement.md: quizzes for the seed topics, timing, delayed-test delivery, grading rubric. Five to ten dogfood sessions run under the protocol. Exit: the latency table is met at p95, the instrument runs end to end, and the interview notes tell us what v1 is.
 
 ## Risks and how v0 handles them
 
