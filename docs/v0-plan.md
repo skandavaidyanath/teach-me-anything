@@ -1,6 +1,6 @@
 # v0 Plan
 
-Date: 2026-10-02. Status: proposed, pending one open decision (see the end).
+Date: 2026-10-02. Status: agreed. The language decision at the end is settled: TypeScript on the request path, Python offline.
 
 ## Goal
 
@@ -119,6 +119,19 @@ The op schema is the center of the design. It is defined once and shared by the 
 
 One Opus-class model for Planner, Brancher, and Responder, with effort varied per role rather than switching models. The Planner thinks, the Responder talks. Dispatcher and Responder sit behind interfaces so a calibrated classifier or a diffusion model can replace them when measurement says so.
 
+## Increments
+
+The milestones below are the engineering shape. These are the finer steps we actually ship, each small enough to check the user experience before the next one builds on it.
+
+| Increment | What lands | What to check as a user | Status |
+|---|---|---|---|
+| v0.0 | Board, playhead, hand-written merge sort lesson, browser voice, local interrupts, navigation, pre-authored branches | Rhythm. Does the interrupt feel smooth. Does the board carry the content without reading captions. | built 2026-10-02 |
+| v0.1 | Real TTS with word timestamps behind the speaker interface. Harness skeleton: WebSocket, session actor, the same canned lesson streamed as ops from the server | Server-driven playback feels identical to local. Reconnect mid-lesson. | |
+| v0.2 | Planner spine live, primitives only. Calibration drives the plan | Lesson quality on the seed topics. Time to first audio. | |
+| v0.3 | Dispatcher and Responder live for interrupts. Answers write back into the graph | Aside quality and latency. Second learner hits the fast path. | |
+| v0.4 | Animator with Remotion compositions, fallback, compile metrics | Does animation earn its place over primitives. | |
+| v0.5 | Brancher fan-out, Observer, synthetic learner, measurement instrument | Fast-path hit rate. Latency table at p95. Instrument runs end to end. | |
+
 ## Milestones
 
 Each milestone has an exit criterion you can check in five minutes.
@@ -160,10 +173,12 @@ Worth borrowing as ideas, not code:
 
 The purpose-built harness is small. Session actor, state machine, task registry, prompt assembly, relay, and gateway should come in around two thousand lines.
 
-## Open decision: implementation language
+## Implementation language
 
-**Recommended: TypeScript end to end.** One pnpm monorepo with the Next.js client, the harness as a Node service with WebSockets, and the Animator's compile and render step. The op schema is one Zod module shared by every layer, which matters because that schema is the center of the design. Remotion is native. The agent logic is prompt assembly, streaming, and state machines, none of which needs Python.
+Decided 2026-10-02: TypeScript on the request path, Python for the offline path (analysis, grading pipeline, any future fine-tuning).
+
+**TypeScript end to end.** One pnpm monorepo with the Next.js client, the harness as a Node service with WebSockets, and the Animator's compile and render step. The op schema is one Zod module shared by every layer, which matters because that schema is the center of the design. Remotion is native. The agent logic is prompt assembly, streaming, and state machines, none of which needs Python.
 
 **Alternative: Python harness.** FastAPI with WebSockets for the harness, Pydantic for the op schema with JSON Schema exported and TypeScript types generated at build time, and a small Node sidecar that exposes one endpoint for compile and render. Viable, and closer to the praxis idiom, at the cost of a second language and a generated schema boundary.
 
-This is the one decision that changes the M0 scaffold. Everything above holds either way.
+Hosted model APIs are HTTP and have TypeScript SDKs with parity. Research tooling is Python-first, which is why training and analysis stay in Python, off the latency path.

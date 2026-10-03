@@ -1,0 +1,11 @@
+{
+  "name": "teach-me-anything",
+  "private": true,
+  "packageManager": "pnpm@10.3.0",
+  "scripts": {
+    "dev": "pnpm --filter @tma/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  }
+}

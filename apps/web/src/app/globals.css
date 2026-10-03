@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/*
+  Board tokens. A quiet, cool glass board. The tutor's highlighter is the one
+  loud color on the page; correctness colors appear only at checks.
+*/
+@theme {
+  --color-board: #eaeef3;
+  --color-surface: #ffffff;
+  --color-rail: #dfe5ec;
+  --color-line: #c9d2dd;
+  --color-ink: #17243a;
+  --color-ink-soft: #4b5a73;
+  --color-ink-mute: #8a97aa;
+  --color-marker: #f6c84f;
+  --color-marker-soft: #fdeeb9;
+  --color-correct: #1f9c79;
+  --color-correct-soft: #d6f1e8;
+  --color-incorrect: #c3573f;
+  --color-incorrect-soft: #f6ddd6;
+  --color-pin-takeaway: #f6c84f;
+  --color-pin-definition: #6f8fb8;
+  --color-pin-equation: #1f9c79;
+  --color-pin-code: #8a97aa;
+
+  --font-sans: var(--font-atkinson), "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-board);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  overflow: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+/* The spoken sentence: words darken as they are spoken. */
+.caption-word {
+  color: var(--color-ink-mute);
+  transition: color 120ms linear;
+}
+.caption-word[data-spoken="true"] {
+  color: var(--color-ink);
+}
+
+/* A cell that is being compared, marked by the tutor's highlighter. */
+.cell {
+  transition:
+    background-color 220ms var(--ease-settle),
+    transform 220ms var(--ease-settle),
+    box-shadow 220ms var(--ease-settle),
+    opacity 220ms var(--ease-settle);
+}
+.cell[data-tone="marker"] {
+  background: var(--color-marker-soft);
+  box-shadow: inset 0 -3px 0 var(--color-marker);
+}
+.cell[data-tone="correct"] {
+  background: var(--color-correct-soft);
+  box-shadow: inset 0 -3px 0 var(--color-correct);
+}
+.cell[data-tone="incorrect"] {
+  background: var(--color-incorrect-soft);
+  box-shadow: inset 0 -3px 0 var(--color-incorrect);
+}
+.cell[data-clickable="true"] {
+  cursor: pointer;
+}
+.cell[data-clickable="true"]:hover {
+  transform: translateY(-2px);
+}
+
+/* Elements arriving on the stage. Motion answers an op, nothing else moves. */
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.settle-in {
+  animation: settle-in 260ms var(--ease-settle) both;
+}
+
+.katex-display {
+  margin: 0;
+}

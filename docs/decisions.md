@@ -43,3 +43,10 @@ Design decisions made so far, with the reasoning. Dated 2026-10-02 unless noted.
 20. **One model family, effort varied per role.** The Planner thinks at high effort, the Responder talks at low effort. Keeping one model keeps one prompt cache namespace. Switching models is a measured optimization, not a default.
 
 21. **References kept in mind, not adopted.** Context Language Models (arXiv 2609.37725) for the shared-workspace idea and model-kept notes. TypeSafe's Jev for calibrated structured decisions. Inception's Mercury for fast generation. None are v0 dependencies.
+
+22. **TypeScript on the request path, Python offline.** The op schema is one Zod module shared by client, harness, and content. Remotion needs Node anyway. Hosted model APIs are HTTP with TypeScript SDKs at parity. Analysis, the grading pipeline, and any fine-tuning of a Dispatcher or Responder stay in Python, reading replay logs and the database, never in the latency path.
+
+23. **Engine semantics, fixed in v0.0.** The board is always the replay of executed ops, so seek and rewind are recomputation, not undo. "Go back" pops history to the previous sentence boundary and requeues lesson ops; spliced reaction ops are dropped and the check is re-asked. Skip and forward jumps fast-forward the board silently: shows, updates, clears, and pins are applied, checks follow their correct path, highlights are dropped. Asides run on a swapped-in queue and remove what they put on the stage when they finish. Pins persist across everything except an explicit rewind past them.
+
+24. **Build in increments the user can check.** Each v0.x step is small enough to evaluate by using it, not reading it, before the next step builds on it. The increments table in the v0 plan is the sequence.
+
