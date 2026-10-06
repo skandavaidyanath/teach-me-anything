@@ -35,7 +35,7 @@ export function SplitTreeView({ element, state, onCell }: ElementViewProps<Split
   const n = element.values.length;
 
   return (
-    <div className="settle-in flex flex-col items-stretch gap-3">
+    <div className="settle-in flex flex-col items-stretch gap-4">
       {levels.slice(0, reveal + 1).map((nodes, depth) => {
         const tone = toneFor(state.board, { id: element.id, index: depth });
         const sorted = sortedFrom !== undefined && depth >= sortedFrom;
@@ -49,7 +49,7 @@ export function SplitTreeView({ element, state, onCell }: ElementViewProps<Split
               onClick={() => onCell({ id: element.id, index: depth })}
               aria-label={`level ${depth}`}
               className={[
-                "cell flex items-center gap-2 justify-self-center rounded-md px-2 py-1.5",
+                "cell flex items-center gap-3 justify-self-center rounded-md px-2 py-2",
                 receded ? "opacity-40" : "",
                 pointed ? "outline outline-2 outline-ink" : "",
               ].join(" ")}
@@ -59,12 +59,12 @@ export function SplitTreeView({ element, state, onCell }: ElementViewProps<Split
                 <span
                   key={i}
                   className={[
-                    "flex items-center gap-1 rounded-md border px-1.5 py-1",
+                    "flex items-center gap-1 rounded-md border px-2 py-1.5",
                     sorted ? "border-correct/40 bg-correct-soft/60" : "border-line bg-surface",
                   ].join(" ")}
                 >
                   {(sorted ? [...node.values].sort((a, b) => a - b) : node.values).map((v, j) => (
-                    <span key={j} className="inline-flex h-8 min-w-8 items-center justify-center rounded px-1 text-[17px] tabular-nums">
+                    <span key={j} className="inline-flex h-10 min-w-10 items-center justify-center rounded px-1 text-[22px] tabular-nums">
                       {v}
                     </span>
                   ))}
@@ -72,7 +72,7 @@ export function SplitTreeView({ element, state, onCell }: ElementViewProps<Split
               ))}
             </button>
             {element.showWork ? (
-              <div className="w-36 text-[13px] text-ink-soft">{n} elements touched</div>
+              <div className="w-40 text-[15px] text-ink-soft">{n} elements touched</div>
             ) : (
               <div className="w-0" aria-hidden />
             )}
@@ -80,7 +80,7 @@ export function SplitTreeView({ element, state, onCell }: ElementViewProps<Split
         );
       })}
       {element.showWork && (
-        <div className="mt-1 text-center text-[14px] text-ink-soft">
+        <div className="mt-1 text-center text-[16px] text-ink-soft">
           {reveal} merge levels × {n} elements each
         </div>
       )}

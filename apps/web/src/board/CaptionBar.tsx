@@ -3,6 +3,11 @@
 import { useMemo } from "react";
 import type { Playhead, PlayheadState } from "@/playhead/playhead";
 
+/**
+ * The spoken sentence, at the top of the board where the eye starts. Words
+ * darken as they are spoken. When the lesson is waiting on a check, the
+ * question and its chips take this spot.
+ */
 export function CaptionBar({ state, playhead }: { state: PlayheadState; playhead: Playhead }) {
   const caption = state.caption;
   const check = state.check;
@@ -24,16 +29,18 @@ export function CaptionBar({ state, playhead }: { state: PlayheadState; playhead
   else if (awaiting) status = "Your turn";
   else if (check?.result) status = check.result.correct ? "Right" : "Not quite";
 
+  const idle = state.mode === "calibrating" || state.mode === "idle";
+
   return (
-    <div className="px-5 pt-4">
-      <div className="flex min-h-[1.25rem] items-center gap-3 text-[12.5px] text-ink-soft">
+    <div className="px-5 pb-3 pt-1" aria-live="polite">
+      <div className="flex min-h-[1.25rem] items-center gap-3 text-[13px] text-ink-soft">
         {status && <span className={state.aside ? "rounded-full bg-marker-soft px-2 py-0.5 text-ink" : ""}>{status}</span>}
-        {state.toast && <span className="text-ink-mute">{state.toast}</span>}
+        {state.toast && <span className={state.toast.startsWith("Pinned") ? "rounded-full bg-marker-soft px-2 py-0.5 text-ink" : "text-ink-mute"}>{state.toast}</span>}
       </div>
-      <div className="mt-1 min-h-[3.75rem]">
+      <div className="mt-1 min-h-[4.5rem]">
         {awaiting ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-[21px] leading-snug text-ink">{check.op.prompt}</p>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <p className="max-w-[60ch] text-[26px] leading-snug text-ink">{check.op.prompt}</p>
             {check.op.kind === "choice" && (
               <div className="flex flex-wrap gap-2">
                 {(check.op.options ?? []).map((o) => (
@@ -41,18 +48,18 @@ export function CaptionBar({ state, playhead }: { state: PlayheadState; playhead
                     key={o}
                     type="button"
                     onClick={() => playhead.answerCheck(o)}
-                    className="rounded-full border border-ink px-4 py-1.5 text-[15px] hover:bg-ink hover:text-surface"
+                    className="rounded-full border border-ink px-4 py-1.5 text-[16px] hover:bg-ink hover:text-surface"
                   >
                     {o}
                   </button>
                 ))}
               </div>
             )}
-            {check.op.kind === "click_cell" && <span className="text-[14px] text-ink-soft">Click it on the board.</span>}
-            {check.op.kind === "free_text" && <span className="text-[14px] text-ink-soft">Type your answer below.</span>}
+            {check.op.kind === "click_cell" && <span className="text-[15px] text-ink-soft">Click it on the board.</span>}
+            {check.op.kind === "free_text" && <span className="text-[15px] text-ink-soft">Type your answer below.</span>}
           </div>
         ) : caption ? (
-          <p className="text-[21px] leading-snug" aria-live="polite">
+          <p className="max-w-[70ch] text-[26px] leading-snug">
             {words.map((w, i) => (
               <span key={i} className="caption-word" data-spoken={caption.spokenChars >= w.end || caption.spokenChars >= caption.text.length}>
                 {w.text}
@@ -60,9 +67,7 @@ export function CaptionBar({ state, playhead }: { state: PlayheadState; playhead
             ))}
           </p>
         ) : (
-          <p className="text-[21px] leading-snug text-ink-mute">
-            {state.mode === "finished" ? "Lesson complete." : state.mode === "calibrating" || state.mode === "idle" ? "" : "…"}
-          </p>
+          <p className="text-[26px] leading-snug text-ink-mute">{state.mode === "finished" ? "Lesson complete." : idle ? "" : "…"}</p>
         )}
       </div>
     </div>

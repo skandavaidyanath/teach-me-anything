@@ -11,15 +11,15 @@ export function ArrayRowView({ element, state, clickable, onCell }: ElementViewP
 
   return (
     <div className="settle-in flex items-center gap-4">
-      {element.label && <div className="w-16 text-right text-[14px] text-ink-soft">{element.label}</div>}
+      {element.label && <div className="w-20 text-right text-[17px] text-ink-soft">{element.label}</div>}
       <div
         className={[
-          "flex min-h-[3.25rem] items-center gap-1.5 rounded-md p-1.5",
+          "flex min-h-[4.25rem] items-center gap-2 rounded-md p-2",
           isOutput ? "border border-dashed border-line" : "",
         ].join(" ")}
       >
         {element.values.length === 0 && (
-          <div className="px-3 text-[14px] text-ink-mute">{isOutput ? "nothing merged yet" : "empty"}</div>
+          <div className="px-4 text-[16px] text-ink-mute">{isOutput ? "nothing merged yet" : "empty"}</div>
         )}
         {element.values.map((v, i) => {
           const ref = { id: element.id, index: i };
@@ -30,7 +30,7 @@ export function ArrayRowView({ element, state, clickable, onCell }: ElementViewP
               key={`${element.id}-${i}-${String(v)}`}
               type="button"
               className={[
-                "cell flex h-11 min-w-11 items-center justify-center rounded-md border px-3 text-[20px] tabular-nums",
+                "cell flex h-14 min-w-14 items-center justify-center rounded-md border px-4 text-[26px] tabular-nums",
                 tone ? "border-transparent" : "border-line bg-surface",
                 isPointed(ref) ? "outline outline-2 outline-ink" : "",
                 clickableCell ? "ring-2 ring-ink/30 ring-offset-1" : "",

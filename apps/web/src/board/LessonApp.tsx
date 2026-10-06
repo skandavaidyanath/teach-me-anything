@@ -15,6 +15,10 @@ export function LessonApp({ lesson }: { lesson: Lesson }) {
   const issues = useMemo(() => validateLesson(lesson).issues, [lesson]);
 
   useEffect(() => {
+    playhead.detectSpeech();
+  }, [playhead]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const typing = target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA");
@@ -29,14 +33,14 @@ export function LessonApp({ lesson }: { lesson: Lesson }) {
   }, [playhead]);
 
   return (
-    <div className="grid h-dvh grid-rows-[auto_minmax(0,1fr)_auto]">
+    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto]">
       <OutlineStrip lesson={lesson} state={state} playhead={playhead} />
-      <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_320px] gap-3 px-4 pb-2">
+      <CaptionBar state={state} playhead={playhead} />
+      <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_400px] gap-3 px-4 pb-3">
         <Stage lesson={lesson} state={state} playhead={playhead} />
         <PinnedRail state={state} playhead={playhead} />
       </div>
       <div className="border-t border-line bg-surface">
-        <CaptionBar state={state} playhead={playhead} />
         <InputBar state={state} playhead={playhead} />
       </div>
       {issues.length > 0 && (

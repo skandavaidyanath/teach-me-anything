@@ -35,7 +35,17 @@ export const mergeSortLesson: Lesson = {
         { op: "update", id: "b1.u4", target: "OUT", patch: { values: [1, 2] } },
         { op: "clear_highlights", id: "b1.c1" },
         { op: "say", id: "b1.s6", text: "Every step looks at just two elements, so merging two sorted lists is a single pass through the data." },
-        { op: "pin", id: "b1.p1", pin: { pinId: "T1", kind: "takeaway", text: "Merging two sorted lists takes one pass." } },
+        { op: "say", id: "b1.s7", text: "That is the whole trick, so I'll pin it." },
+        {
+          op: "pin",
+          id: "b1.p1",
+          pin: {
+            pinId: "T1",
+            kind: "takeaway",
+            title: "Merging is one pass",
+            text: "Two sorted lists merge by comparing the fronts and taking the smaller. Each element is touched once.",
+          },
+        },
         { op: "highlight", id: "b1.h3", targets: [{ id: "A", index: 0 }, { id: "B", index: 0 }] },
         {
           op: "check",
@@ -84,7 +94,17 @@ export const mergeSortLesson: Lesson = {
         { op: "update", id: "b2.u3", target: "T", patch: { revealDepth: 3 } },
         { op: "highlight", id: "b2.h1", targets: [{ id: "T", index: 3 }] },
         { op: "say", id: "b2.s5", text: "A list with one element is already sorted, so this is the base case, and it needs no work at all." },
-        { op: "pin", id: "b2.p1", pin: { pinId: "T2", kind: "takeaway", text: "A list of one element is already sorted." } },
+        { op: "say", id: "b2.s6", text: "Pin that too: the base case is free." },
+        {
+          op: "pin",
+          id: "b2.p1",
+          pin: {
+            pinId: "T2",
+            kind: "takeaway",
+            title: "The base case is free",
+            text: "A list of one element is already sorted, so splitting stops there and costs nothing.",
+          },
+        },
         { op: "clear_highlights", id: "b2.c2" },
         {
           op: "check",
@@ -120,6 +140,7 @@ export const mergeSortLesson: Lesson = {
         { op: "update", id: "b3.u4", target: "T", patch: { sortedFromDepth: 0 } },
         { op: "highlight", id: "b3.h3", targets: [{ id: "T", index: 0 }] },
         { op: "say", id: "b3.s5", text: "That is the whole algorithm: split until trivial, then merge on the way back up." },
+        { op: "say", id: "b3.s6", text: "Here it is as code. I'll pin it so you can glance at it any time." },
         {
           op: "pin",
           id: "b3.p1",
@@ -158,7 +179,18 @@ export const mergeSortLesson: Lesson = {
         { op: "say", id: "b4.s2", text: "On every level, the merges together touch each of the eight elements exactly once." },
         { op: "say", id: "b4.s3", text: "There are three levels, because three is how many times you can halve eight." },
         { op: "say", id: "b4.s4", text: "In general that is log n levels, each doing n work." },
-        { op: "pin", id: "b4.p1", pin: { pinId: "E2", kind: "equation", tex: "\\text{work} \\approx n \\cdot \\log_2 n", title: "levels times work per level" } },
+        { op: "say", id: "b4.s5", text: "Pinning the formula." },
+        {
+          op: "pin",
+          id: "b4.p1",
+          pin: {
+            pinId: "E2",
+            kind: "equation",
+            title: "Why it is n log n",
+            tex: "\\text{work} \\approx n \\cdot \\log_2 n",
+            text: "log n levels, and every level touches all n elements once.",
+          },
+        },
         {
           op: "check",
           id: "b4.k1",
@@ -192,7 +224,17 @@ export const mergeSortLesson: Lesson = {
           },
         },
         { op: "say", id: "b5.s2", text: "Two things to remember in practice: it is stable, and it needs extra memory for the merges." },
-        { op: "pin", id: "b5.p1", pin: { pinId: "T3", kind: "takeaway", text: "Stable. Extra memory. Always n log n." } },
+        { op: "say", id: "b5.s3", text: "One last pin." },
+        {
+          op: "pin",
+          id: "b5.p1",
+          pin: {
+            pinId: "T3",
+            kind: "takeaway",
+            title: "In practice",
+            text: "Stable, so equal elements keep their order. Needs extra memory for the merges. Always n log n.",
+          },
+        },
         {
           op: "check",
           id: "b5.k1",
@@ -219,7 +261,16 @@ export const mergeSortLesson: Lesson = {
         { op: "say", id: "br1.s1", text: "Good question. You could stop at pairs and sort them by hand, but going to one means the base case needs zero logic." },
         { op: "highlight", id: "br1.h1", targets: [{ id: "T", index: 3 }] },
         { op: "say", id: "br1.s2", text: "A single element is already sorted, so there is nothing to do, and the merge step does all the real work either way." },
-        { op: "pin", id: "br1.p1", pin: { pinId: "T2", kind: "takeaway", text: "A list of one element is already sorted." } },
+        {
+          op: "pin",
+          id: "br1.p1",
+          pin: {
+            pinId: "T2",
+            kind: "takeaway",
+            title: "The base case is free",
+            text: "A list of one element is already sorted, so splitting stops there and costs nothing.",
+          },
+        },
       ],
       resume: { mode: "continue", bridge: "So, back to the splitting." },
     },
@@ -293,7 +344,7 @@ export const mergeSortLesson: Lesson = {
   ],
   fallback: {
     ops: [
-      { op: "say", id: "fb.s1", text: "In this demo I can only answer a few prepared questions, so I will pass on that one. In the real product the tutor would answer it here." },
+      { op: "say", id: "fb.s1", text: "I don't have an answer prepared for that yet. This version only knows a few questions in advance; the live tutor comes next." },
     ],
     resume: { mode: "continue", bridge: "Let's pick up where we left off." },
   },

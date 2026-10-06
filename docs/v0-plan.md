@@ -121,15 +121,16 @@ One Opus-class model for Planner, Brancher, and Responder, with effort varied pe
 
 ## Increments
 
-The milestones below are the engineering shape. These are the finer steps we actually ship, each small enough to check the user experience before the next one builds on it.
+The milestones below are the engineering shape. These are the finer steps we actually ship, each small enough to check the user experience before the next one builds on it. Reordered on 2026-10-06 after the v0.0 review: a live tutor for questions and real voice come first, because their absence was what the review felt most.
 
 | Increment | What lands | What to check as a user | Status |
 |---|---|---|---|
-| v0.0 | Board, playhead, hand-written merge sort lesson, browser voice, local interrupts, navigation, pre-authored branches | Rhythm. Does the interrupt feel smooth. Does the board carry the content without reading captions. | built 2026-10-02 |
-| v0.1 | Real TTS with word timestamps behind the speaker interface. Harness skeleton: WebSocket, session actor, the same canned lesson streamed as ops from the server | Server-driven playback feels identical to local. Reconnect mid-lesson. | |
-| v0.2 | Planner spine live, primitives only. Calibration drives the plan | Lesson quality on the seed topics. Time to first audio. | |
-| v0.3 | Dispatcher and Responder live for interrupts. Answers write back into the graph | Aside quality and latency. Second learner hits the fast path. | |
-| v0.4 | Animator with Remotion compositions, fallback, compile metrics | Does animation earn its place over primitives. | |
+| v0.0 | Board, playhead, hand-written merge sort lesson, browser voice, local interrupts, navigation, pre-authored branches | Rhythm. Does the interrupt feel smooth. Does the board carry the content without reading captions. | built 2026-10-02, reviewed 2026-10-06 |
+| v0.0.1 | Layout from the review: caption on top, wider rail with stamped pins and spoken pin cues, primitives scaled up | Do pins register as moments. Is the script where the eye goes. | built 2026-10-06 |
+| v0.1 | Harness skeleton: WebSocket, session actor, the canned lesson streamed as ops from the server. Real TTS with word timestamps behind the speaker interface. Live Responder for unpredicted questions, answers played as ops | Voice you can listen to for ten minutes. Ask anything and get a real answer in context, then a clean resume. | |
+| v0.2 | Blackboard writing primitive: handwriting that appears in sync with speech, driven by the same word timestamps as the caption | Does writing-as-you-speak beat cards and captions for explanation. | |
+| v0.3 | Planner spine live on primitives and writing. Calibration drives the plan. Dispatcher routes input over the plan's branches | Lesson quality on the seed topics. Time to first audio. | |
+| v0.4 | Animator with Remotion compositions, fallback, compile metrics | Does animation earn its place over primitives and writing. | |
 | v0.5 | Brancher fan-out, Observer, synthetic learner, measurement instrument | Fast-path hit rate. Latency table at p95. Instrument runs end to end. | |
 
 ## Milestones

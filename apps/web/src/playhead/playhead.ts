@@ -93,8 +93,10 @@ export class Playhead {
     private readonly lesson: Lesson,
     opts: PlayheadOptions = {},
   ) {
-    const available = speechAvailable();
-    this.speaker = opts.speaker ?? createSpeaker(available ? "voice" : "silent");
+    // Start silent on both server and client so the first render matches;
+    // detectSpeech() upgrades to voice after mount when the browser has it.
+    this.injectedSpeaker = opts.speaker ?? null;
+    this.speaker = opts.speaker ?? createSpeaker("silent");
     this.settleScale = opts.settleScale ?? 1;
     this.state = {
       mode: lesson.calibration ? "calibrating" : "idle",
@@ -108,9 +110,20 @@ export class Playhead {
       typingArmed: false,
       calibrationAnswer: null,
       speakerKind: this.speaker.kind,
-      speechAvailable: available,
+      speechAvailable: false,
       toast: null,
     };
+  }
+
+  private readonly injectedSpeaker: Speaker | null;
+
+  /** Client-only: switch to the browser's voice if it has one. Call once after mount. */
+  detectSpeech(): void {
+    if (this.injectedSpeaker) return;
+    const available = speechAvailable();
+    if (!available || this.state.speechAvailable) return;
+    this.speaker = createSpeaker("voice");
+    this.set({ speechAvailable: true, speakerKind: this.speaker.kind });
   }
 
   // ---- store plumbing -----------------------------------------------------
@@ -127,10 +140,10 @@ export class Playhead {
     for (const fn of this.listeners) fn();
   }
 
-  private toast(message: string): void {
+  private toast(message: string, ms = 1600): void {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.set({ toast: message });
-    this.toastTimer = setTimeout(() => this.set({ toast: null }), 1600);
+    this.toastTimer = setTimeout(() => this.set({ toast: null }), ms);
   }
 
   get beat() {
@@ -224,6 +237,7 @@ export class Playhead {
       }
       default: {
         this.set({ board: applyOp(this.state.board, op) });
+        if (op.op === "pin") this.toast(`Pinned: ${op.pin.title ?? op.pin.text ?? op.pin.pinId}`, 2600);
         const ms = SETTLE_MS[op.op] ?? 200;
         await sleep(ms * this.settleScale);
         return;

@@ -32,7 +32,7 @@ export function Stage({ lesson, state, playhead }: { lesson: Lesson; state: Play
       aria-label="Board"
       className="relative flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface"
     >
-      <div className="flex flex-1 flex-col items-center justify-center gap-7 overflow-auto p-8">
+      <div className="flex flex-1 flex-col items-center justify-center gap-9 overflow-auto p-8">
         {state.board.order.length === 0 && state.mode !== "calibrating" && state.mode !== "idle" && state.mode !== "finished" && (
           <div className="text-ink-mute">Listening…</div>
         )}

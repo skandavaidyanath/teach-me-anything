@@ -23,12 +23,12 @@ export function LatexView({ element, state, onCell }: ElementViewProps<LatexCard
       type="button"
       onClick={() => onCell({ id: element.id })}
       className={[
-        "settle-in rounded-lg border border-line bg-surface px-8 py-5 text-[22px]",
+        "settle-in rounded-lg border border-line bg-surface px-10 py-6 text-[28px]",
         pointed ? "outline outline-2 outline-ink" : "hover:bg-board",
       ].join(" ")}
     >
       <Tex tex={element.tex} display />
-      {element.caption && <div className="mt-2 text-[14px] text-ink-soft">{element.caption}</div>}
+      {element.caption && <div className="mt-2 text-[16px] text-ink-soft">{element.caption}</div>}
     </button>
   );
 }

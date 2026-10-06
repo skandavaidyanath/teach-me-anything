@@ -10,12 +10,12 @@ export function TextCardView({ element, state, onCell }: ElementViewProps<TextCa
       type="button"
       onClick={() => onCell({ id: element.id })}
       className={[
-        "settle-in max-w-xl rounded-lg border border-line bg-surface px-6 py-5 text-left",
+        "settle-in max-w-2xl rounded-lg border border-line bg-surface px-8 py-6 text-left",
         pointed ? "outline outline-2 outline-ink" : "hover:bg-board",
       ].join(" ")}
     >
-      {element.title && <div className="mb-2 text-[14px] text-ink-soft">{element.title}</div>}
-      <div className="space-y-1.5 text-[18px] leading-snug">
+      {element.title && <div className="mb-2 text-[16px] text-ink-soft">{element.title}</div>}
+      <div className="space-y-2 text-[22px] leading-snug">
         {element.body.split("\n").map((line, i) => (
           <p key={i}>{line}</p>
         ))}

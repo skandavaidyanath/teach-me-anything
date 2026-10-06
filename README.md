@@ -2,7 +2,7 @@
 
 An agentic tutor. You ask a question like "How does merge sort work?" and within a few seconds a short, interactive, interruptible lesson begins: a voice narrates, a visual appears on a persistent board, key facts accumulate in a pinned rail, and the lesson moves one idea at a time with a check at each step. You can interrupt at any moment, point at anything on the board, say "go back", or skip ahead.
 
-**Status:** v0.0 is built and ready to try. It is the board and the playhead running a hand-written merge sort lesson, with voice, interrupts, and navigation, and no model calls yet. The plan is in [docs/v0-plan.md](docs/v0-plan.md), the reasoning in [docs/decisions.md](docs/decisions.md), and how we will measure it in [docs/measurement.md](docs/measurement.md).
+**Status:** v0.0 is built and ready to try. It is the board and the playhead running a hand-written merge sort lesson, with voice, interrupts, and navigation, and no model calls yet. The plan is in [docs/v0-plan.md](docs/v0-plan.md), the reasoning in [docs/decisions.md](docs/decisions.md), how we will measure it in [docs/measurement.md](docs/measurement.md), and what each review said in [docs/feedback.md](docs/feedback.md).
 
 ## Run v0.0
 
@@ -21,7 +21,7 @@ Then open http://localhost:3000 in Chrome, Edge, or Safari. Voice uses the brows
 
 The point of v0.0 is to feel the rhythm and the interrupts, so push on those.
 
-1. Answer the calibration chip and let the first beat run. Notice when the board moves relative to the words.
+1. Answer the calibration chip and let the first beat run. Notice when the board moves relative to the words, and watch the rail when the tutor says it is pinning something.
 2. When the check comes, click the wrong cell on purpose.
 3. Mid-sentence, start typing anything. The lesson pauses at the end of the sentence. Clear the box and it resumes.
 4. Ask a question the lesson predicted: "why go all the way to one?" during the splitting beat, "what if one list runs out?", "how does merge know which one to take?", "how does this compare to quicksort?"
