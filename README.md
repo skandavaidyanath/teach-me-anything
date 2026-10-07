@@ -2,20 +2,20 @@
 
 An agentic tutor. You ask a question like "How does merge sort work?" and within a few seconds a short, interactive, interruptible lesson begins: a voice narrates, a visual appears on a persistent board, key facts accumulate in a pinned rail, and the lesson moves one idea at a time with a check at each step. You can interrupt at any moment, point at anything on the board, say "go back", or skip ahead.
 
-**Status:** v0.0 is built and ready to try. It is the board and the playhead running a hand-written merge sort lesson, with voice, interrupts, and navigation, and no model calls yet. The plan is in [docs/v0-plan.md](docs/v0-plan.md), the reasoning in [docs/decisions.md](docs/decisions.md), how we will measure it in [docs/measurement.md](docs/measurement.md), and what each review said in [docs/feedback.md](docs/feedback.md).
+**Status:** v0.1 is built. The board and playhead from v0.0, now fed by a server: the lesson streams in beat by beat over a WebSocket, narration is real text-to-speech with word timestamps, and any question the lesson did not predict goes to a live tutor whose answer streams back and plays in context. The plan is in [docs/v0-plan.md](docs/v0-plan.md), the reasoning in [docs/decisions.md](docs/decisions.md), how we will measure it in [docs/measurement.md](docs/measurement.md), and what each review said in [docs/feedback.md](docs/feedback.md).
 
-## Run v0.0
+## Run it
 
-Needs Node 20 or newer and pnpm 10.
+Needs Node 20 or newer and pnpm 10. Two keys go in a `.env` at the repo root (see `apps/harness/.env.example`): `ANTHROPIC_API_KEY` for the live tutor and `CARTESIA_API_KEY` for voice.
 
 ```
 pnpm install
 pnpm dev
 ```
 
-Then open http://localhost:3000 in Chrome, Edge, or Safari. Voice uses the browser's own speech engine in v0.0, so quality varies by browser and machine. Chrome on a Mac with the Samantha voice is the best case. The "Captions" toggle at the top right pauses the lesson at reading speed instead.
+That starts the web app on http://localhost:3000 and the harness on http://localhost:3210. Open the web app in Chrome, Edge, or Safari. The dot next to the title is green when the harness is connected. Without the harness, or without keys, the app still runs: it plays the built-in lesson locally with the browser's own speech engine, which is what v0.0 did.
 
-`pnpm test` runs the schema, reducer, dispatcher, and engine tests. `pnpm typecheck` and `pnpm build` do what they say.
+`pnpm test` runs the schema, reducer, dispatcher, engine, parser, and session tests. `pnpm typecheck` and `pnpm build` do what they say.
 
 ## What to try
 
@@ -25,21 +25,23 @@ The point of v0.0 is to feel the rhythm and the interrupts, so push on those.
 2. When the check comes, click the wrong cell on purpose.
 3. Mid-sentence, start typing anything. The lesson pauses at the end of the sentence. Clear the box and it resumes.
 4. Ask a question the lesson predicted: "why go all the way to one?" during the splitting beat, "what if one list runs out?", "how does merge know which one to take?", "how does this compare to quicksort?"
-5. Ask something it did not predict. A placeholder stands in for the generative tutor.
+5. Ask something it did not predict, like "is this how Python sorts?" The live tutor answers in a sentence or two, may highlight or pin something, and bridges back to where you were. The readout next to the controls shows how long it took.
 6. Type "go back", "again", "skip", or "start over". Space pauses and resumes when the input is not focused.
 7. Click a pin in the rail, then type "explain this".
 8. Click an outline chip to jump forward or back.
 
-## What is not in v0.0
+## What is not in v0.1
 
-No model calls. Every sentence, branch, and check is hand-written in `apps/web/src/content/merge-sort.ts`. Voice is the browser's speech engine. Caption timing is estimated when the engine gives no word boundaries. Nothing is saved. Desktop only.
+The lesson itself is still hand-written, in `packages/content`. The tutor only answers interrupts; it does not plan or narrate the lesson yet. Pre-authored branches are matched by regex on the client. Nothing persists beyond a per-session replay log under `data/local/`. Desktop only.
 
 ## Layout
 
 ```
-apps/web          Next.js client: board, playhead, speaker, dispatcher, lesson content
-packages/schema   the op schema, shared by everything that produces or plays a lesson
-docs              plan, decisions, measurement protocol
+apps/web          Next.js client: board, playhead, speakers, dispatcher, harness connection
+apps/harness      Node service: WebSocket sessions, Responder (Claude), TTS (Cartesia), replay logs
+packages/schema   the op schema and the wire protocol, shared by everything
+packages/content  hand-written lessons until the Planner writes them
+docs              plan, decisions, measurement protocol, review notes
 ```
 
 ## The idea in one paragraph

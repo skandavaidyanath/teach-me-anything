@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { mergeSortLesson } from "@/content/merge-sort";
+import { mergeSortLesson } from "@tma/content";
+import { headerFromLesson } from "@tma/schema";
 import { Playhead } from "./playhead";
 import type { SpeakHandle, SpeakOutcome, Speaker } from "./speaker";
 
@@ -48,7 +49,14 @@ async function until(cond: () => boolean, label: string, tries = 500): Promise<v
 
 function make() {
   const speaker = new ManualSpeaker();
-  const ph = new Playhead(mergeSortLesson, { speaker, settleScale: 0 });
+  const ph = Playhead.fromLesson(mergeSortLesson, { speaker, settleScale: 0 });
+  return { speaker, ph };
+}
+
+/** Streaming mode: header only, beats appended by the test. */
+function makeStreaming() {
+  const speaker = new ManualSpeaker();
+  const ph = new Playhead(headerFromLesson(mergeSortLesson), { speaker, settleScale: 0 });
   return { speaker, ph };
 }
 
@@ -284,4 +292,72 @@ describe("Playhead", () => {
     await until(() => ph.getState().mode === "finished", "finished");
     expect(ph.getState().board.pins.map((p) => p.pinId)).toEqual(["T1", "T2", "E1", "E2", "T3"]);
   });
+
+  it("waits for beats that have not arrived and continues when they do", async () => {
+    const { speaker, ph } = makeStreaming();
+    ph.start("Yes");
+    expect(ph.getState().waiting).toBe("beat");
+    expect(speaker.current).toBeNull();
+    ph.appendBeat(mergeSortLesson.beats[0]!, 0);
+    await speakTo(speaker, ph, S1);
+    expect(ph.getState().waiting).toBeNull();
+    ph.skipBeat();
+    expect(ph.getState().beatIndex).toBe(1);
+    expect(ph.getState().waiting).toBe("beat");
+    ph.appendBeat(mergeSortLesson.beats[1]!, 1);
+    await speakTo(speaker, ph, B2_S1);
+    expect(ph.getState().loadedBeats).toBe(2);
+  });
+
+  it("routes an unpredicted question to the host and plays the streamed answer, then resumes", async () => {
+    const { speaker, ph } = make();
+    const asks: Array<{ requestId: string; text: string }> = [];
+    ph.onAsk = (req) => asks.push({ requestId: req.requestId, text: req.text });
+    ph.start(null);
+    await speakTo(speaker, ph, S2);
+    ph.submitInput("is this how python sorts things?");
+    expect(asks).toHaveLength(1);
+    expect(ph.getState().aside?.title).toBe("Answering");
+    await until(() => ph.getState().waiting === "aside", "waiting on the responder");
+    const id = asks[0]!.requestId;
+    ph.appendAsideOps(id, [{ op: "say", id: "r.s1", text: "Python uses Timsort, which is built on merging runs." }]);
+    await speakTo(speaker, ph, "Python uses Timsort, which is built on merging runs.");
+    expect(ph.getState().telemetry.ask?.firstOpMs).not.toBeNull();
+    speaker.finish();
+    await until(() => ph.getState().waiting === "aside", "waiting for more");
+    ph.appendAsideOps(id, [{ op: "highlight", id: "r.h1", targets: [{ id: "A", index: 0 }] }]);
+    ph.completeAside(id, { mode: "continue", bridge: "Back to our two lists." }, null);
+    await speakTo(speaker, ph, "Back to our two lists.");
+    expect(ph.getState().aside).toBeNull();
+    expect(ph.getState().board.highlights).toEqual([]);
+    speaker.finish();
+    await speakTo(speaker, ph, S2);
+  });
+
+  it("falls back to the canned apology when the responder fails", async () => {
+    const { speaker, ph } = make();
+    let id = "";
+    ph.onAsk = (req) => (id = req.requestId);
+    ph.start(null);
+    await speakTo(speaker, ph, S1);
+    ph.submitInput("tell me about quantum sorting");
+    await until(() => ph.getState().waiting === "aside", "waiting");
+    ph.failAside(id, "boom");
+    const fallbackText = mergeSortLesson.fallback.ops[0]!.op === "say" ? mergeSortLesson.fallback.ops[0]!.text : "";
+    await speakTo(speaker, ph, fallbackText);
+    speaker.finish();
+    await speakTo(speaker, ph, mergeSortLesson.fallback.resume.bridge!);
+  });
+
+  it("reports events to the host", async () => {
+    const { speaker, ph } = make();
+    const kinds: string[] = [];
+    ph.onEvent = (e) => kinds.push(e.kind);
+    ph.start("No");
+    await speakTo(speaker, ph, S1);
+    ph.submitInput("skip");
+    await speakTo(speaker, ph, B2_S1);
+    expect(kinds).toEqual(["lesson_started", "beat_started", "nav", "beat_started"]);
+  });
 });
+

@@ -1,4 +1,6 @@
-import type { Branch, Lesson, NavCommand } from "@tma/schema";
+import type { Branch, NavCommand } from "@tma/schema";
+
+type Routable = { branches: Branch[] };
 
 /**
  * v0.0 dispatcher. Navigation commands resolve locally and never reach a
@@ -39,7 +41,7 @@ export type DispatchContext = {
   pointed: string | null;
 };
 
-export function matchBranch(lesson: Lesson, text: string, ctx: DispatchContext): Branch | null {
+export function matchBranch(lesson: Routable, text: string, ctx: DispatchContext): Branch | null {
   const t = text.trim();
   let best: { branch: Branch; score: number } | null = null;
   for (const branch of lesson.branches) {
@@ -53,7 +55,7 @@ export function matchBranch(lesson: Lesson, text: string, ctx: DispatchContext):
   return best?.branch ?? null;
 }
 
-export function dispatchInput(lesson: Lesson, text: string, ctx: DispatchContext): Dispatch {
+export function dispatchInput(lesson: Routable, text: string, ctx: DispatchContext): Dispatch {
   const nav = matchNav(text);
   if (nav) return { kind: "nav", command: nav };
   const branch = matchBranch(lesson, text, ctx);

@@ -128,7 +128,7 @@ The milestones below are the engineering shape. These are the finer steps we act
 | v0.0 | Board, playhead, hand-written merge sort lesson, browser voice, local interrupts, navigation, pre-authored branches | Rhythm. Does the interrupt feel smooth. Does the board carry the content without reading captions. | built 2026-10-02, reviewed 2026-10-06 |
 | v0.0.1 | Layout from the review: caption on top, wider rail with stamped pins and spoken pin cues, primitives scaled up | Do pins register as moments. Is the script where the eye goes. | built 2026-10-06 |
 | v0.0.2 | Motion: a `move` op so values travel between rows, FLIP animation for anything that changes position, pin spotlight that flies into the rail instead of a spoken cue | Do the moves read as the algorithm's steps. Does the pin moment land without words. | built 2026-10-06 |
-| v0.1 | Harness skeleton: WebSocket, session actor, the canned lesson streamed as ops from the server. Real TTS with word timestamps behind the speaker interface. Live Responder for unpredicted questions, answers played as ops | Voice you can listen to for ten minutes. Ask anything and get a real answer in context, then a clean resume. | |
+| v0.1 | Harness skeleton: WebSocket, session actor, the canned lesson streamed as ops from the server. Real TTS with word timestamps behind the speaker interface. Live Responder for unpredicted questions, answers played as ops | Voice you can listen to for ten minutes. Ask anything and get a real answer in context, then a clean resume. | built 2026-10-06 |
 | v0.2 | Blackboard writing primitive: handwriting that appears in sync with speech, driven by the same word timestamps as the caption | Does writing-as-you-speak beat cards and captions for explanation. | |
 | v0.3 | Planner spine live on primitives and writing. Calibration drives the plan. Dispatcher routes input over the plan's branches | Lesson quality on the seed topics. Time to first audio. | |
 | v0.4 | Animator with Remotion compositions, fallback, compile metrics | Does animation earn its place over primitives and writing. | |
@@ -145,6 +145,22 @@ Each milestone has an exit criterion you can check in five minutes.
 **M2, animations and the graph.** Animator pipeline with compile, validate, retry, fallback. Brancher fan-out. Lesson graph persistence. Responder write-back. Exit: the split-tree animation plays in a live merge sort lesson, a predicted question hits the fast path, and an unpredicted one becomes a node for the next run.
 
 **M3, measure and dogfood.** Observer and learner profile. Synthetic learner across all 10 topics. Latency budget report. The measurement instrument from measurement.md: quizzes for the seed topics, timing, delayed-test delivery, grading rubric. Five to ten dogfood sessions run under the protocol. Exit: the latency table is met at p95, the instrument runs end to end, and the interview notes tell us what v1 is.
+
+## Measured so far
+
+First numbers from v0.1 on a laptop against the live APIs, single run, not yet the synthetic learner:
+
+| Moment | Measured | Budget |
+|---|---|---|
+| Round trip to the harness | 1 to 4 ms | |
+| One sentence of TTS, uncached | 600 to 1300 ms | |
+| One sentence of TTS, cached | 0 ms server side | |
+| Question to filler audio | 1.5 s | |
+| Question to first answer op from the Responder | 2.4 s | 1.5 s |
+| Responder first token (Claude Opus 5.5, low effort) | 2.0 s | |
+| Responder done, four sentences plus a pin | 3.9 s | |
+
+The generative path is over budget, as expected before any of the planned work on it. The filler sentence covers the gap from 1.5 s, and the first real sentence is audible around 3 s. The levers, in order: stream Cartesia audio chunks to the client instead of waiting for the whole sentence, prefetch the first answer sentence's audio the moment it parses (done), move the in-scope tier to a faster model, and later the pre-authored fast path from the Brancher.
 
 ## Risks and how v0 handles them
 

@@ -52,3 +52,11 @@ Design decisions made so far, with the reasoning. Dated 2026-10-02 unless noted.
 
 25. **Things travel, they do not teleport.** Any value that moves between containers keeps its identity and animates along the way, through a `move` op and a FLIP pass over the board. The same pass carries a pin from its spotlight on the stage into the rail. Motion shows what changed; it is never decoration.
 
+26. **The Responder speaks prose with directives, streamed.** It writes plain sentences, plus `@highlight`, `@pin`, and a final `@resume` line. The harness turns each completed sentence into a `say` op the moment it is complete, so the first sentence is on its way to TTS while the model is still writing. Structured JSON output would have forced the client to wait for the whole answer.
+
+27. **Voice comes through the harness, with word timestamps.** The client speaks through a server speaker that fetches audio and per-word timing from the harness, decodes it with the Web Audio API, and drives the caption from the timestamps. The same timestamps will drive blackboard writing. The browser speech engine remains the offline fallback.
+
+28. **A filler covers a slow answer.** If the Responder's first sentence has not arrived within 900 ms, a short pre-synthesized filler plays. It is a mask, not a fix, and the latency readout keeps the real number visible.
+
+29. **The client falls back to local on any harness failure.** No connection, no header within 2.5 seconds, or an answer that errors all degrade to the bundled lesson, browser speech, or the canned apology. The lesson never stalls on the server.
+

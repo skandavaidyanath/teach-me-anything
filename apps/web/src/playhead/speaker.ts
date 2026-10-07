@@ -17,6 +17,8 @@ export interface Speaker {
   readonly kind: SpeakerKind;
   /** `onProgress` receives the number of characters spoken so far. */
   speak(text: string, onProgress: (chars: number) => void): SpeakHandle;
+  /** Warm up upcoming sentences, if the speaker has anything to fetch. */
+  prefetch?(texts: string[]): void;
 }
 
 const WORDS_PER_MINUTE = 165;

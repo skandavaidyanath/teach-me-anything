@@ -1,6 +1,6 @@
 import { LessonApp } from "@/board/LessonApp";
-import { mergeSortLesson } from "@/content/merge-sort";
+import { mergeSortLesson } from "@tma/content";
 
 export default function Page() {
-  return <LessonApp lesson={mergeSortLesson} />;
+  return <LessonApp localLesson={mergeSortLesson} />;
 }

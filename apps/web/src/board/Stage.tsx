@@ -1,6 +1,6 @@
 "use client";
 
-import type { Element, ElementRef, Lesson } from "@tma/schema";
+import type { Element, ElementRef } from "@tma/schema";
 import type { Playhead, PlayheadState } from "@/playhead/playhead";
 import { ArrayRowView } from "./elements/ArrayRowView";
 import { TextCardView } from "./elements/TextCardView";
@@ -15,7 +15,7 @@ export type ElementViewProps<E extends Element> = {
   onCell: (ref: ElementRef) => void;
 };
 
-export function Stage({ lesson, state, playhead }: { lesson: Lesson; state: PlayheadState; playhead: Playhead }) {
+export function Stage({ state, playhead }: { state: PlayheadState; playhead: Playhead }) {
   const activeCheck = state.mode === "awaiting_check" && state.check && state.check.result === null ? state.check.op : null;
   const clickable: ElementRef[] = activeCheck?.kind === "click_cell" ? (activeCheck.targets ?? []) : [];
 
@@ -35,7 +35,7 @@ export function Stage({ lesson, state, playhead }: { lesson: Lesson; state: Play
     >
       <div className="flex flex-1 flex-col items-center justify-center gap-9 overflow-auto p-8">
         {state.board.order.length === 0 && state.mode !== "calibrating" && state.mode !== "idle" && state.mode !== "finished" && (
-          <div className="text-ink-mute">Listening…</div>
+          <div className="text-ink-mute">{state.waiting === "beat" ? "The next part is on its way…" : "Listening…"}</div>
         )}
         {state.board.order.map((id) => {
           const el = state.board.elements[id];
@@ -59,11 +59,11 @@ export function Stage({ lesson, state, playhead }: { lesson: Lesson; state: Play
         return pin ? <PinSpotlight pin={pin} /> : null;
       })()}
 
-      {state.mode === "calibrating" && lesson.calibration && (
+      {state.mode === "calibrating" && state.calibration && (
         <Overlay>
-          <p className="max-w-md text-balance text-center text-[22px] leading-snug">{lesson.calibration.prompt}</p>
+          <p className="max-w-md text-balance text-center text-[22px] leading-snug">{state.calibration.prompt}</p>
           <div className="flex flex-wrap justify-center gap-2">
-            {lesson.calibration.options.map((o) => (
+            {state.calibration.options.map((o) => (
               <button
                 key={o}
                 type="button"

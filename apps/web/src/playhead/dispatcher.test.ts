@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeSortLesson } from "@/content/merge-sort";
+import { mergeSortLesson } from "@tma/content";
 import { dispatchInput, matchNav } from "./dispatcher";
 
 describe("matchNav", () => {

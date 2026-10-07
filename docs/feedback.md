@@ -24,3 +24,9 @@ Verdict: "I like this." Two refinements, both about motion.
 - **Numbers should float into the merged slot, not disappear and reappear.** Changed in v0.0.2: a `move` op carries a cell, with its identity, from one row to another, and a FLIP pass animates anything whose position changed between renders. Rows also slide to make room when a new row appears.
 - **Don't say "I'm going to pin it". Show it.** Changed in v0.0.2: the spoken pin cues are gone. When a pin lands, the idea appears large over the stage for about a second, then flies into its slot in the rail and glows briefly.
 
+## v0.1, built 2026-10-06, awaiting review
+
+What to look at: voice quality and pacing over a full lesson, whether the word highlight tracks the audio, how a live answer feels, including the filler before it, and whether the resume after a live answer reads naturally. The Cartesia voice is Clive by default and can be changed from the header.
+
+Known before review: the generative path lands its first real sentence around 3 s after the question, with a filler at 1.5 s. The plan's "Measured so far" table has the breakdown and the order of fixes.
+

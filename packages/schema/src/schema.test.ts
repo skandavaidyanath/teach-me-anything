@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeAnswer, validateLesson, type Lesson } from "./index";
+import { normalizeAnswer, validateLesson, type Lesson } from "./core";
 
 const tiny: Lesson = {
   id: "t",

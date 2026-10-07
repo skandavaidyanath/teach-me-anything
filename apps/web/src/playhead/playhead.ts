@@ -1,47 +1,81 @@
-import { normalizeAnswer, sameRef, type CheckOp, type ElementRef, type Lesson, type NavCommand, type Op, type Resume } from "@tma/schema";
+import {
+  headerFromLesson,
+  normalizeAnswer,
+  sameRef,
+  type AskContext,
+  type AsideTiming,
+  type Beat,
+  type CheckOp,
+  type ElementRef,
+  type Lesson,
+  type LessonHeader,
+  type NavCommand,
+  type Op,
+  type PlayheadEvent,
+  type Resume,
+} from "@tma/schema";
 import { applyOp, emptyBoard, replay, type BoardState } from "./board-reducer";
 import { dispatchInput } from "./dispatcher";
-import { createSpeaker, speechAvailable, type SpeakHandle, type Speaker, type SpeakerKind } from "./speaker";
+import { createSpeaker, speechAvailable, type SpeakHandle, type Speaker } from "./speaker";
 
 /**
  * The playhead executes ops in order, owns the local interrupt path, and
  * exposes a snapshot for React. It is the client-side runtime from the plan:
  * no model calls, and pause, seek, and resume are all local.
  *
- * Board state is always `replay(history)`. Rewind pops history back to a
- * sentence boundary and requeues what it popped. Asides run on a swapped-in
- * queue and resume by restoring the saved one.
+ * Content arrives as a header plus beats appended over time, which is the
+ * shape a streaming Planner produces. Board state is always `replay(history)`.
+ * Rewind pops history back to a sentence boundary and requeues what it popped.
+ * Asides run on a swapped-in queue; a remote aside's queue fills as the
+ * Responder streams.
  */
 
 export type Mode = "calibrating" | "idle" | "playing" | "paused" | "awaiting_check" | "finished";
-
 export type Origin = "beat" | "reaction" | "aside" | "bridge";
+export type SpeakerKind = "voice" | "silent";
 
 type QueueItem = { op: Op; origin: Origin };
 
 export type Caption = { text: string; spokenChars: number; origin: Origin };
+export type CheckState = { op: CheckOp; result: { correct: boolean; answer: string } | null };
 
-export type CheckState = {
-  op: CheckOp;
-  result: { correct: boolean; answer: string } | null;
+export type AskTelemetry = {
+  requestId: string;
+  sentAt: number;
+  firstOpMs: number | null;
+  firstAudioMs: number | null;
+  doneMs: number | null;
+  server: AsideTiming | null;
+};
+
+export type Telemetry = {
+  rttMs: number | null;
+  tts: { fetchMs: number; cached: boolean; synthMs: number } | null;
+  ask: AskTelemetry | null;
 };
 
 export type PlayheadState = {
   mode: Mode;
+  title: string;
+  calibration: { prompt: string; options: string[] } | null;
   beatIndex: number;
+  outline: Array<{ id: string; title: string }>;
+  loadedBeats: number;
   completedBeats: string[];
   board: BoardState;
   caption: Caption | null;
   check: CheckState | null;
   aside: { title: string } | null;
+  /** The loop is idle because content has not arrived yet. */
+  waiting: "beat" | "aside" | null;
   pointed: ElementRef | null;
   typingArmed: boolean;
   calibrationAnswer: string | null;
   speakerKind: SpeakerKind;
   speechAvailable: boolean;
   toast: string | null;
-  /** A pin being shown large on the stage before it flies to the rail. */
   pinSpotlight: { pinId: string } | null;
+  telemetry: Telemetry;
 };
 
 type Listener = () => void;
@@ -53,22 +87,38 @@ const SETTLE_MS: Partial<Record<Op["op"], number>> = {
   highlight: 320,
   clear_highlights: 120,
   clear: 240,
-  pin: 360,
 };
+
+const FILLERS = ["Good question.", "Let me think about that for a second.", "Right, let me answer that."];
+const PREFETCH_AHEAD = 3;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+function firstSays(ops: Op[], n: number): string[] {
+  const out: string[] = [];
+  for (const op of ops) {
+    if (op.op === "say") out.push(op.text);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
 export type PlayheadOptions = {
-  /** Replace the speaker, e.g. a manual one in tests. */
+  /** The voice speaker to use when voice is on: a server speaker, or a manual one in tests. Browser speech is detected otherwise. */
   speaker?: Speaker;
   /** Multiplier on settle delays between board ops. 0 in tests. */
   settleScale?: number;
 };
 
+export type AskRequest = { requestId: string; text: string; pointed: string | null; context: AskContext };
+
 export class Playhead {
   private state: PlayheadState;
   private listeners = new Set<Listener>();
   private readonly settleScale: number;
+
+  private readonly header: LessonHeader;
+  private beats: Beat[] = [];
 
   private history: QueueItem[] = [];
   private beatStarts: number[] = [];
@@ -77,57 +127,69 @@ export class Playhead {
   private runToken = 0;
   private inFlight: QueueItem | null = null;
   private speakHandle: SpeakHandle | null = null;
+
+  private voiceSpeaker: Speaker | null;
+  private readonly silentSpeaker: Speaker = createSpeaker("silent");
   private speaker: Speaker;
+  private speakerInjected: boolean;
 
   private pauseAtBoundary = false;
   private softPaused = false;
+  private waitingForBeat = false;
 
   private asideFrame: {
     savedQueue: QueueItem[];
     savedCheck: CheckState | null;
     stageIdsBefore: Set<string>;
-    resume: Resume;
+    resume: Resume | null;
     keepStage: boolean;
+    open: boolean;
+    requestId: string | null;
+    receivedOps: number;
   } | null = null;
-
+  private fillerTimer: ReturnType<typeof setTimeout> | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(
-    private readonly lesson: Lesson,
-    opts: PlayheadOptions = {},
-  ) {
-    // Start silent on both server and client so the first render matches;
-    // detectSpeech() upgrades to voice after mount when the browser has it.
-    this.injectedSpeaker = opts.speaker ?? null;
-    this.speaker = opts.speaker ?? createSpeaker("silent");
+  /** Set by the host to route unpredicted questions to the harness. */
+  onAsk: ((req: AskRequest) => void) | null = null;
+  /** Set by the host to forward playhead events for the replay log. */
+  onEvent: ((event: PlayheadEvent) => void) | null = null;
+
+  constructor(header: LessonHeader, opts: PlayheadOptions = {}) {
+    this.header = header;
+    this.voiceSpeaker = opts.speaker ?? null;
+    this.speakerInjected = !!opts.speaker;
+    this.speaker = this.voiceSpeaker ?? this.silentSpeaker;
     this.settleScale = opts.settleScale ?? 1;
     this.state = {
-      mode: lesson.calibration ? "calibrating" : "idle",
+      mode: header.calibration ? "calibrating" : "idle",
+      title: header.title,
+      calibration: header.calibration ?? null,
       beatIndex: 0,
+      outline: header.outline,
+      loadedBeats: 0,
       completedBeats: [],
       board: emptyBoard,
       caption: null,
       check: null,
       aside: null,
+      waiting: null,
       pointed: null,
       typingArmed: false,
       calibrationAnswer: null,
-      speakerKind: this.speaker.kind,
-      speechAvailable: false,
+      speakerKind: this.voiceSpeaker ? "voice" : "silent",
+      speechAvailable: !!this.voiceSpeaker,
       toast: null,
       pinSpotlight: null,
+      telemetry: { rttMs: null, tts: null, ask: null },
     };
   }
 
-  private readonly injectedSpeaker: Speaker | null;
-
-  /** Client-only: switch to the browser's voice if it has one. Call once after mount. */
-  detectSpeech(): void {
-    if (this.injectedSpeaker) return;
-    const available = speechAvailable();
-    if (!available || this.state.speechAvailable) return;
-    this.speaker = createSpeaker("voice");
-    this.set({ speechAvailable: true, speakerKind: this.speaker.kind });
+  /** Local mode: the whole lesson is already here. */
+  static fromLesson(lesson: Lesson, opts: PlayheadOptions = {}): Playhead {
+    const ph = new Playhead(headerFromLesson(lesson), opts);
+    lesson.beats.forEach((b, i) => ph.appendBeat(b, i));
+    return ph;
   }
 
   // ---- store plumbing -----------------------------------------------------
@@ -144,23 +206,105 @@ export class Playhead {
     for (const fn of this.listeners) fn();
   }
 
+  private setTelemetry(patch: Partial<Telemetry>): void {
+    this.set({ telemetry: { ...this.state.telemetry, ...patch } });
+  }
+
+  private emit(event: PlayheadEvent): void {
+    this.onEvent?.(event);
+  }
+
   private toast(message: string, ms = 1600): void {
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.set({ toast: message });
     this.toastTimer = setTimeout(() => this.set({ toast: null }), ms);
   }
 
-  get beat() {
-    return this.lesson.beats[this.state.beatIndex]!;
+  get beat(): Beat | undefined {
+    return this.beats[this.state.beatIndex];
+  }
+
+  private get beatId(): string {
+    return this.beat?.id ?? this.header.outline[this.state.beatIndex]?.id ?? "";
+  }
+
+  // ---- content arrival ----------------------------------------------------
+
+  appendBeat(beat: Beat, index?: number): void {
+    const at = index ?? this.beats.length;
+    if (this.beats[at]) return;
+    this.beats[at] = beat;
+    this.set({ loadedBeats: this.beats.filter(Boolean).length });
+    // The calibration question is the latency mask: warm the opening sentences while the learner reads it.
+    if (at === 0 && (this.state.mode === "calibrating" || this.state.mode === "idle")) {
+      this.speaker.prefetch?.([...FILLERS, ...firstSays(beat.ops, PREFETCH_AHEAD)]);
+    }
+    if (this.waitingForBeat && at === this.state.beatIndex) {
+      this.waitingForBeat = false;
+      this.loadBeatQueue(at);
+      this.set({ waiting: null });
+      if (this.state.mode === "playing") void this.run();
+    }
+  }
+
+  private loadBeatQueue(index: number): void {
+    const beat = this.beats[index]!;
+    this.beatStarts[index] = this.history.length;
+    this.queue = beat.ops.map((op) => ({ op, origin: "beat" as const }));
+    this.prefetchUpcoming();
+    this.emit({ kind: "beat_started", beatId: beat.id, index });
+  }
+
+  // ---- speakers -----------------------------------------------------------
+
+  /** Client-only: use the browser's voice when no server voice was injected. Call once after mount. */
+  detectSpeech(): void {
+    if (this.speakerInjected || this.voiceSpeaker) return;
+    if (!speechAvailable()) return;
+    this.voiceSpeaker = createSpeaker("voice");
+    this.speaker = this.voiceSpeaker;
+    this.set({ speechAvailable: true, speakerKind: "voice" });
+  }
+
+  setSpeaker(kind: SpeakerKind): void {
+    if (kind === this.state.speakerKind) return;
+    if (kind === "voice" && !this.voiceSpeaker) return;
+    const wasSpeaking = this.inFlight?.op.op === "say" && this.state.mode === "playing";
+    if (wasSpeaking) this.stopCurrent();
+    this.speaker = kind === "voice" ? this.voiceSpeaker! : this.silentSpeaker;
+    this.set({ speakerKind: kind });
+    if (wasSpeaking) void this.run();
+  }
+
+  recordTts(stats: { fetchMs: number; cached: boolean; synthMs: number }): void {
+    this.setTelemetry({ tts: stats });
+  }
+
+  recordRtt(ms: number): void {
+    this.setTelemetry({ rttMs: ms });
+  }
+
+  private prefetchUpcoming(): void {
+    const texts: string[] = [];
+    for (const item of this.queue) {
+      if (item.op.op === "say") texts.push(item.op.text);
+      if (texts.length >= PREFETCH_AHEAD) break;
+    }
+    if (texts.length < PREFETCH_AHEAD && !this.asideFrame) {
+      const next = this.beats[this.state.beatIndex + 1];
+      if (next) texts.push(...firstSays(next.ops, PREFETCH_AHEAD - texts.length));
+    }
+    if (texts.length) this.speaker.prefetch?.(texts);
   }
 
   // ---- lifecycle ----------------------------------------------------------
 
   start(calibrationAnswer: string | null = null): void {
+    this.stopCurrent();
     this.history = [];
-    this.beatStarts = [0];
-    this.queue = this.lesson.beats[0]!.ops.map((op) => ({ op, origin: "beat" as const }));
+    this.beatStarts = [];
     this.asideFrame = null;
+    this.waitingForBeat = false;
     this.set({
       mode: "playing",
       beatIndex: 0,
@@ -169,18 +313,19 @@ export class Playhead {
       caption: null,
       check: null,
       aside: null,
+      waiting: null,
       calibrationAnswer,
     });
-    void this.run();
-  }
-
-  setSpeaker(kind: SpeakerKind): void {
-    if (kind === this.speaker.kind) return;
-    const wasSpeaking = this.inFlight?.op.op === "say" && this.state.mode === "playing";
-    if (wasSpeaking) this.stopCurrent();
-    this.speaker = createSpeaker(kind);
-    this.set({ speakerKind: this.speaker.kind });
-    if (wasSpeaking) void this.run();
+    this.emit({ kind: "lesson_started", calibrationAnswer });
+    this.speaker.prefetch?.(FILLERS);
+    if (this.beats[0]) {
+      this.loadBeatQueue(0);
+      void this.run();
+    } else {
+      this.queue = [];
+      this.waitingForBeat = true;
+      this.set({ waiting: "beat" });
+    }
   }
 
   // ---- the loop -----------------------------------------------------------
@@ -191,11 +336,19 @@ export class Playhead {
       const item = this.queue.shift();
       if (!item) {
         if (this.asideFrame) {
+          if (this.asideFrame.open) {
+            this.set({ waiting: "aside" });
+            return;
+          }
           this.finishAside();
           continue;
         }
-        if (!this.advanceBeat()) {
-          this.set({ mode: "finished", caption: null });
+        const next = this.advanceBeat();
+        if (next === "finished") {
+          this.set({ mode: "finished", caption: null, waiting: null });
+          this.emit({ kind: "lesson_finished" });
+        } else if (next === "waiting") {
+          return;
         }
         continue;
       }
@@ -209,12 +362,19 @@ export class Playhead {
     switch (op.op) {
       case "say": {
         this.inFlight = item;
-        // A verdict ("Right" / "Not quite") belongs to the reaction that follows a check.
-        // Once the lesson itself speaks again, it is stale.
         const staleVerdict = item.origin !== "reaction" && this.state.check?.result ? { check: null } : {};
-        this.set({ caption: { text: op.text, spokenChars: 0, origin: item.origin }, ...staleVerdict });
+        this.set({ caption: { text: op.text, spokenChars: 0, origin: item.origin }, waiting: null, ...staleVerdict });
+        this.prefetchUpcoming();
+        let audioMarked = false;
         const handle = this.speaker.speak(op.text, (chars) => {
           if (token !== this.runToken) return;
+          if (!audioMarked && chars > 0) {
+            audioMarked = true;
+            const ask = this.state.telemetry.ask;
+            if (item.origin === "aside" && ask && ask.firstAudioMs === null) {
+              this.setTelemetry({ ask: { ...ask, firstAudioMs: Math.round(performance.now() - ask.sentAt) } });
+            }
+          }
           const caption = this.state.caption;
           if (caption && caption.text === op.text) this.set({ caption: { ...caption, spokenChars: chars } });
         });
@@ -257,17 +417,22 @@ export class Playhead {
     }
   }
 
-  private advanceBeat(): boolean {
+  private advanceBeat(): "advanced" | "waiting" | "finished" {
     const next = this.state.beatIndex + 1;
-    const completed = [...this.state.completedBeats, this.beat.id];
-    if (next >= this.lesson.beats.length) {
+    const completed = this.beat && !this.state.completedBeats.includes(this.beat.id) ? [...this.state.completedBeats, this.beat.id] : this.state.completedBeats;
+    if (next >= this.header.outline.length) {
       this.set({ completedBeats: completed });
-      return false;
+      return "finished";
     }
-    this.beatStarts[next] = this.history.length;
-    this.queue = this.lesson.beats[next]!.ops.map((op) => ({ op, origin: "beat" as const }));
     this.set({ beatIndex: next, completedBeats: completed, check: null });
-    return true;
+    if (!this.beats[next]) {
+      this.waitingForBeat = true;
+      this.queue = [];
+      this.set({ waiting: "beat" });
+      return "waiting";
+    }
+    this.loadBeatQueue(next);
+    return "advanced";
   }
 
   private recomputeBoard(): void {
@@ -293,10 +458,12 @@ export class Playhead {
 
   // ---- interrupts ---------------------------------------------------------
 
-  /** Soft interrupt: the learner started (or stopped) typing. */
   setTyping(typing: boolean): void {
     if (typing) {
-      if (this.state.mode === "playing") this.pauseAtBoundary = true;
+      if (this.state.mode === "playing" && !this.state.typingArmed) {
+        this.pauseAtBoundary = true;
+        this.emit({ kind: "interrupt", mode: "soft", beatId: this.beatId, opId: this.inFlight?.op.id ?? null });
+      }
       this.set({ typingArmed: this.state.mode === "playing" });
       return;
     }
@@ -334,7 +501,6 @@ export class Playhead {
     this.set({ pointed: ref });
   }
 
-  /** The learner submitted text. Checks first, then navigation, then branches. */
   submitInput(raw: string): void {
     const text = raw.trim();
     if (!text) return;
@@ -350,19 +516,43 @@ export class Playhead {
       }
     }
     const pointed = this.state.pointed?.id ?? null;
-    const dispatch = dispatchInput(this.lesson, text, { beatId: this.beat.id, pointed });
+    const dispatch = dispatchInput(this.header, text, { beatId: this.beatId, pointed });
     this.set({ pointed: null, typingArmed: false });
     this.pauseAtBoundary = false;
     if (dispatch.kind === "nav") {
+      this.emit({ kind: "nav", command: dispatch.command });
       this.nav(dispatch.command);
       return;
     }
     if (this.state.mode === "finished" || this.state.mode === "calibrating" || this.state.mode === "idle") return;
+    this.emit({ kind: "interrupt", mode: "hard", beatId: this.beatId, opId: this.inFlight?.op.id ?? null });
     if (dispatch.kind === "branch") {
-      this.startAside(dispatch.branch.ops, dispatch.branch.resume, dispatch.branch.title ?? "Aside", dispatch.branch.keepStage ?? false);
-    } else {
-      this.startAside(this.lesson.fallback.ops, this.lesson.fallback.resume, "Aside", false);
+      const b = dispatch.branch;
+      this.emit({ kind: "aside_started", source: "branch", title: b.title ?? b.id, text });
+      this.startAside(b.ops, b.resume, b.title ?? "Aside", b.keepStage ?? false);
+      return;
     }
+    if (this.onAsk) {
+      const requestId = `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      this.emit({ kind: "aside_started", source: "remote", title: "Thinking", text });
+      const context = this.buildAskContext();
+      this.startAside([], null, "Answering", false, requestId);
+      this.setTelemetry({ ask: { requestId, sentAt: performance.now(), firstOpMs: null, firstAudioMs: null, doneMs: null, server: null } });
+      this.onAsk({ requestId, text, pointed, context });
+      this.fillerTimer = setTimeout(() => {
+        const frame = this.asideFrame;
+        if (!frame || frame.requestId !== requestId || frame.receivedOps > 0) return;
+        const filler = FILLERS[Math.floor(Math.random() * FILLERS.length)]!;
+        this.queue.push({ op: { op: "say", id: `${requestId}.filler`, text: filler }, origin: "aside" });
+        if (this.state.waiting === "aside") {
+          this.set({ waiting: null });
+          void this.run();
+        }
+      }, 900 * this.settleScale);
+      return;
+    }
+    this.emit({ kind: "aside_started", source: "fallback", title: "Aside", text });
+    this.startAside(this.header.fallback.ops, this.header.fallback.resume, "Aside", false);
   }
 
   nav(command: NavCommand): void {
@@ -392,11 +582,17 @@ export class Playhead {
 
   // ---- asides -------------------------------------------------------------
 
-  private startAside(ops: Op[], resume: Resume, title: string, keepStage: boolean): void {
+  private startAside(ops: Op[], resume: Resume | null, title: string, keepStage: boolean, requestId: string | null = null): void {
+    if (this.fillerTimer) clearTimeout(this.fillerTimer);
     if (this.asideFrame) {
-      // A question during an aside replaces the aside; the original lesson position is kept.
+      // A question during an aside replaces the aside; the lesson position is kept.
       this.stopCurrent();
       this.queue = [];
+      this.asideFrame.resume = resume;
+      this.asideFrame.keepStage = keepStage;
+      this.asideFrame.open = resume === null;
+      this.asideFrame.requestId = requestId;
+      this.asideFrame.receivedOps = 0;
     } else {
       this.stopCurrent();
       this.asideFrame = {
@@ -405,18 +601,58 @@ export class Playhead {
         stageIdsBefore: new Set(this.state.board.order),
         resume,
         keepStage,
+        open: resume === null,
+        requestId,
+        receivedOps: 0,
       };
       this.queue = [];
     }
-    this.asideFrame.resume = resume;
-    this.asideFrame.keepStage = keepStage;
     this.queue = ops.map((op) => ({ op, origin: "aside" as const }));
     this.softPaused = false;
-    this.set({ mode: "playing", aside: { title }, check: null, typingArmed: false });
+    this.set({ mode: "playing", aside: { title }, check: null, typingArmed: false, waiting: null });
     void this.run();
   }
 
-  /** Remove what an aside put on the stage, unless the branch asked to keep it. */
+  /** Ops streamed from the Responder for the open remote aside. */
+  appendAsideOps(requestId: string, ops: Op[]): void {
+    const frame = this.asideFrame;
+    if (!frame || frame.requestId !== requestId) return;
+    if (frame.receivedOps === 0) {
+      if (this.fillerTimer) clearTimeout(this.fillerTimer);
+      const ask = this.state.telemetry.ask;
+      if (ask && ask.requestId === requestId) this.setTelemetry({ ask: { ...ask, firstOpMs: Math.round(performance.now() - ask.sentAt) } });
+    }
+    frame.receivedOps += ops.length;
+    this.queue.push(...ops.map((op) => ({ op, origin: "aside" as const })));
+    this.prefetchUpcoming();
+    if (this.state.waiting === "aside" && this.state.mode === "playing") {
+      this.set({ waiting: null });
+      void this.run();
+    }
+  }
+
+  completeAside(requestId: string, resume: Resume, timing: AsideTiming | null = null): void {
+    const frame = this.asideFrame;
+    if (!frame || frame.requestId !== requestId) return;
+    frame.resume = resume;
+    frame.open = false;
+    const ask = this.state.telemetry.ask;
+    if (ask && ask.requestId === requestId) this.setTelemetry({ ask: { ...ask, doneMs: Math.round(performance.now() - ask.sentAt), server: timing } });
+    if (this.state.waiting === "aside" && this.state.mode === "playing") {
+      this.set({ waiting: null });
+      void this.run();
+    }
+  }
+
+  failAside(requestId: string, _message: string): void {
+    const frame = this.asideFrame;
+    if (!frame || frame.requestId !== requestId) return;
+    if (frame.receivedOps === 0) {
+      this.queue.push(...this.header.fallback.ops.map((op) => ({ op, origin: "aside" as const })));
+    }
+    this.completeAside(requestId, this.header.fallback.resume);
+  }
+
   private cleanupAsideStage(frame: NonNullable<typeof this.asideFrame>): void {
     const cleanup: QueueItem[] = [{ op: { op: "clear_highlights", id: `aside.clear.${this.history.length}` }, origin: "aside" }];
     if (!frame.keepStage) {
@@ -429,12 +665,6 @@ export class Playhead {
     }
   }
 
-  /**
-   * Apply the board effects of content the learner is skipping past, without
-   * speaking it: shows, updates, clears, pins. Checks follow their correct path.
-   * Highlights are transient and are dropped. The stage ends up where the
-   * lesson would have left it.
-   */
   private fastForward(ops: Iterable<Op>): void {
     for (const op of ops) {
       switch (op.op) {
@@ -463,7 +693,6 @@ export class Playhead {
     }
   }
 
-  /** The lesson's own pending ops, whether or not an aside is on top of them. */
   private pendingLessonOps(): Op[] {
     const queue = this.asideFrame ? this.asideFrame.savedQueue : this.queue;
     const ops = queue.filter((i) => i.origin === "beat").map((i) => i.op);
@@ -479,12 +708,14 @@ export class Playhead {
     if (!frame) return;
     this.asideFrame = null;
     this.cleanupAsideStage(frame);
+    const resume = frame.resume ?? { mode: "continue" as const };
+    this.emit({ kind: "aside_finished", resume: resume.mode });
 
-    const bridge: QueueItem[] = frame.resume.bridge
-      ? [{ op: { op: "say", id: `bridge.${this.history.length}`, text: frame.resume.bridge }, origin: "bridge" }]
+    const bridge: QueueItem[] = resume.bridge
+      ? [{ op: { op: "say", id: `bridge.${this.history.length}`, text: resume.bridge }, origin: "bridge" }]
       : [];
 
-    switch (frame.resume.mode) {
+    switch (resume.mode) {
       case "continue": {
         this.queue = frame.savedQueue;
         if (frame.savedCheck) this.queue.unshift({ op: frame.savedCheck.op, origin: "beat" });
@@ -504,23 +735,51 @@ export class Playhead {
         break;
       }
     }
+    this.prefetchUpcoming();
     this.set({ aside: null });
+  }
+
+  private buildAskContext(): AskContext {
+    const says = this.history.filter((i) => i.op.op === "say" && i.origin !== "aside").map((i) => (i.op as Extract<Op, { op: "say" }>).text);
+    const board = this.state.board;
+    const summary = board.order.map((id) => {
+      const el = board.elements[id]!;
+      switch (el.kind) {
+        case "array_row":
+          return `${el.label ? `${el.label} ` : ""}(id ${el.id}): [${el.values.join(", ")}]${el.role === "output" ? " (the output)" : ""}`;
+        case "split_tree":
+          return `${el.id}: split tree over ${el.values.join(" ")}, ${el.revealDepth} levels of splitting shown${el.sortedFromDepth !== undefined ? `, merged back up to level ${el.sortedFromDepth}` : ""}`;
+        case "text_card":
+          return `${el.id}: card${el.title ? ` "${el.title}"` : ""}: ${el.body.replace(/\n/g, " / ")}`;
+        case "latex":
+          return `${el.id}: formula ${el.tex}`;
+      }
+    });
+    const activeCheck = this.asideFrame?.savedCheck?.op.prompt ?? (this.state.mode === "awaiting_check" ? (this.state.check?.op.prompt ?? null) : null);
+    return {
+      beatId: this.beatId,
+      beatTitle: this.beat?.title ?? this.header.outline[this.state.beatIndex]?.title ?? "",
+      currentSentence: this.state.caption?.text ?? null,
+      recentSentences: says.slice(-4),
+      boardSummary: summary,
+      pins: board.pins.map((p) => p.title ?? p.text ?? p.pinId),
+      activeCheck,
+      calibrationAnswer: this.state.calibrationAnswer,
+    };
   }
 
   // ---- navigation ---------------------------------------------------------
 
-  /** Move history back past the previous sentence, requeueing lesson ops; spliced ops are dropped. */
   private popToPreviousSentence(): void {
     const requeue: QueueItem[] = [];
     while (this.history.length > 0) {
       const item = this.history.pop()!;
       const currentBeatStart = this.beatStarts[this.state.beatIndex] ?? 0;
       if (this.history.length < currentBeatStart && this.state.beatIndex > 0) {
-        // Crossed into the previous beat.
         const prev = this.state.beatIndex - 1;
         this.set({
           beatIndex: prev,
-          completedBeats: this.state.completedBeats.filter((id) => id !== this.lesson.beats[prev]!.id),
+          completedBeats: this.state.completedBeats.filter((id) => id !== this.beats[prev]?.id),
         });
       }
       if (item.origin === "beat") requeue.unshift(item);
@@ -531,30 +790,23 @@ export class Playhead {
   }
 
   rewind(): void {
-    if (this.state.mode === "finished") {
-      this.set({ mode: "paused" });
-    }
-    const wasPlaying = this.state.mode === "playing";
+    if (this.state.mode === "finished") this.set({ mode: "paused" });
     this.stopCurrent();
     if (this.asideFrame) {
-      // Rewinding inside an aside: just restart the aside's current sentence.
       this.set({ mode: "playing", check: null });
       void this.run();
       return;
     }
-    // The in-flight sentence (if any) is already requeued by stopCurrent; go one further back.
     this.popToPreviousSentence();
     this.toast("Going back");
-    this.set({ mode: "playing", check: null, aside: null });
+    this.set({ mode: "playing", check: null, aside: null, waiting: null });
     void this.run();
-    void wasPlaying;
   }
 
   repeat(): void {
     const wasInFlight = this.inFlight !== null;
     this.stopCurrent();
     if (!wasInFlight) {
-      // Nothing mid-sentence: requeue back to and including the last sentence of any origin.
       const requeue: QueueItem[] = [];
       while (this.history.length > 0) {
         const item = this.history.pop()!;
@@ -565,7 +817,7 @@ export class Playhead {
       this.recomputeBoard();
     }
     this.toast("Once more");
-    this.set({ mode: "playing", check: null });
+    this.set({ mode: "playing", check: null, waiting: null });
     void this.run();
   }
 
@@ -579,13 +831,13 @@ export class Playhead {
     }
     this.fastForward(remaining);
     this.queue = [];
-    this.set({ mode: "playing", aside: null, check: null, caption: null });
+    this.set({ mode: "playing", aside: null, check: null, caption: null, waiting: null });
     this.toast("Skipping ahead");
     void this.run();
   }
 
   jumpToBeat(index: number): void {
-    if (index < 0 || index >= this.lesson.beats.length) return;
+    if (index < 0 || index >= this.header.outline.length) return;
     if (this.state.mode === "calibrating" || this.state.mode === "idle") return;
     this.stopCurrent();
     if (index <= this.state.beatIndex) {
@@ -594,10 +846,9 @@ export class Playhead {
       this.history.length = start;
       this.beatStarts.length = index + 1;
       this.set({
-        completedBeats: this.state.completedBeats.filter((id) => this.lesson.beats.findIndex((b) => b.id === id) < index),
+        completedBeats: this.state.completedBeats.filter((id) => this.header.outline.findIndex((b) => b.id === id) < index),
       });
     } else {
-      // Jumping forward: the board catches up with everything skipped, silently.
       const remaining = this.pendingLessonOps();
       if (this.asideFrame) {
         this.cleanupAsideStage(this.asideFrame);
@@ -608,19 +859,28 @@ export class Playhead {
       const markDone = (id: string) => {
         if (!completed.includes(id)) completed.push(id);
       };
-      markDone(this.beat.id);
+      markDone(this.beatId);
       for (let i = this.state.beatIndex + 1; i < index; i++) {
+        const b = this.beats[i];
         this.beatStarts[i] = this.history.length;
-        this.fastForward(this.lesson.beats[i]!.ops);
-        markDone(this.lesson.beats[i]!.id);
+        if (b) {
+          this.fastForward(b.ops);
+          markDone(b.id);
+        }
       }
-      this.beatStarts[index] = this.history.length;
       this.set({ completedBeats: completed });
     }
-    this.queue = this.lesson.beats[index]!.ops.map((op) => ({ op, origin: "beat" as const }));
     this.recomputeBoard();
-    this.set({ mode: "playing", beatIndex: index, check: null, aside: null, caption: null });
-    void this.run();
+    this.set({ mode: "playing", beatIndex: index, check: null, aside: null, caption: null, waiting: null });
+    if (this.beats[index]) {
+      this.waitingForBeat = false;
+      this.loadBeatQueue(index);
+      void this.run();
+    } else {
+      this.queue = [];
+      this.waitingForBeat = true;
+      this.set({ waiting: "beat" });
+    }
   }
 
   // ---- checks -------------------------------------------------------------
@@ -648,20 +908,18 @@ export class Playhead {
       }
     }
     this.set({ check: { op, result: { correct, answer: answerText } } });
+    this.emit({ kind: "check_answered", checkId: op.id, answer: answerText, correct });
     const reactions = (graded && !correct ? op.onIncorrect : op.onCorrect) ?? [];
-    if (graded) {
-      const tone = correct ? "correct" : "incorrect";
-      if (typeof answer !== "string") {
-        const mark: QueueItem = {
-          op: { op: "highlight", id: `grade.${this.history.length}`, targets: [answer], tone },
-          origin: "reaction",
-        };
-        this.history.push(mark);
-        this.set({ board: applyOp(this.state.board, mark.op) });
-      }
+    if (graded && typeof answer !== "string") {
+      const mark: QueueItem = {
+        op: { op: "highlight", id: `grade.${this.history.length}`, targets: [answer], tone: correct ? "correct" : "incorrect" },
+        origin: "reaction",
+      };
+      this.history.push(mark);
+      this.set({ board: applyOp(this.state.board, mark.op) });
     }
     this.queue.unshift(...reactions.map((r) => ({ op: r, origin: "reaction" as const })));
-    // Let the tick land before the tutor reacts.
+    this.prefetchUpcoming();
     setTimeout(() => {
       if (this.state.mode !== "awaiting_check") return;
       this.set({ mode: "playing" });
