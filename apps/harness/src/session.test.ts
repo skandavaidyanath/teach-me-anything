@@ -3,9 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultLessonId } from "@tma/content";
-import { ServerMessageSchema, type ServerMessage } from "@tma/schema";
+import { ServerMessageSchema, type ServerMessage, type TutorContext, type TutorWindow } from "@tma/schema";
 import { Session } from "./session";
-import type { TextStreamer } from "./responder";
+import type { TextStreamer } from "./tutor";
+import type { PlannerStreamer } from "./planner";
 
 class FakeSocket {
   readonly OPEN = 1;
@@ -21,22 +22,40 @@ afterEach(() => {
   for (const f of fs.readdirSync(tmp)) fs.rmSync(path.join(tmp, f));
 });
 
-const scriptedStreamer =
-  (script: string[]): TextStreamer =>
+const tutorScript =
+  (script: string): TextStreamer =>
   async function* () {
-    for (const piece of script) yield { kind: "text", text: piece };
+    for (const piece of script.match(/.{1,30}/gs) ?? []) yield { kind: "text", text: piece };
     yield { kind: "final", model: "fake", inputTokens: 100, outputTokens: 40, refusal: false };
   };
 
-const tick = () => new Promise((r) => setTimeout(r, 0));
+const context: TutorContext = {
+  beatId: "b1",
+  beatTitle: "The merge trick",
+  outline: [{ id: "b1", title: "The merge trick", status: "current" }, { id: "b2", title: "Split it down", status: "upcoming" }],
+  record: [],
+  recentSentences: [],
+  currentSentence: null,
+  boardSummary: [],
+  pins: [],
+  activeCheck: null,
+};
+const window: TutorWindow = {
+  currentBeatId: "b1",
+  current: [{ op: "say", id: "b1.s6", text: "Every step looks at two elements." }, { op: "check", id: "b1.k1", kind: "choice", prompt: "?", options: ["a", "b"], expected: ["a"] }],
+  nextBeatId: "b2",
+  nextPrefix: [{ op: "say", id: "b2.s1", text: "So where do sorted lists come from?" }],
+};
 
-describe("Session", () => {
-  it("announces itself, then streams header, beats in order, and completion", async () => {
+const noDeps = { tutorStreamer: null, plannerStreamer: null, tts: { available: false, voiceId: null }, logDir: tmp, beatStaggerMs: 1 };
+
+describe("Session with a bundled lesson", () => {
+  it("streams header, beats in order, and completion", async () => {
     const sock = new FakeSocket();
-    const s = new Session(sock, { streamer: null, tts: { available: false, voiceId: null }, logDir: tmp, beatStaggerMs: 1 });
+    const s = new Session(sock, noDeps);
     expect(sock.sent[0]?.type).toBe("session.ready");
-    await s.handle({ type: "session.start", lessonId: defaultLessonId, calibrationAnswer: "Sort of" });
-    expect(sock.sent[1]?.type).toBe("lesson.header");
+    await s.handle({ type: "session.start", lessonId: defaultLessonId, topic: null, calibrationAnswer: null });
+    expect(sock.sent[1]).toMatchObject({ type: "lesson.header", source: "bundled" });
     await new Promise((r) => setTimeout(r, 30));
     const beats = sock.sent.filter((m) => m.type === "lesson.beat");
     expect(beats.map((m) => (m.type === "lesson.beat" ? m.index : -1))).toEqual([0, 1, 2, 3, 4]);
@@ -47,66 +66,69 @@ describe("Session", () => {
 
   it("rejects an unknown lesson and a malformed message", async () => {
     const sock = new FakeSocket();
-    const s = new Session(sock, { streamer: null, tts: { available: false, voiceId: null }, logDir: tmp });
-    await s.handle({ type: "session.start", lessonId: "nope", calibrationAnswer: null });
+    const s = new Session(sock, noDeps);
+    await s.handle({ type: "session.start", lessonId: "nope", topic: null, calibrationAnswer: null });
     expect(sock.sent[1]).toMatchObject({ type: "error" });
     await s.handleRaw("{not json");
     expect(sock.sent[2]).toMatchObject({ type: "error", message: "unrecognized message" });
     s.close();
   });
 
-  it("streams an ask as partial ops then done, with timing", async () => {
+  it("answers a question: streamed answer ops, then the edited window, and records it", async () => {
     const sock = new FakeSocket();
-    const streamer = scriptedStreamer(["Good question. You could stop at", " pairs, but one is simpler.\n@highlight T[3]\n@resume continue Back to the tree.\n"]);
-    const s = new Session(sock, { streamer, tts: { available: false, voiceId: null }, logDir: tmp, beatStaggerMs: 1 });
-    await s.handle({ type: "session.start", lessonId: defaultLessonId, calibrationAnswer: null });
-    await s.handle({
-      type: "ask",
-      requestId: "q1",
-      text: "why go all the way to one?",
-      pointed: null,
-      context: {
-        beatId: "b2",
-        beatTitle: "Split it down",
-        currentSentence: "Cut each half in half again.",
-        recentSentences: ["Take an unsorted list of eight numbers and cut it in half."],
-        boardSummary: ["T: split tree over 8 3 5 1 9 2 7 4, 2 levels revealed"],
-        pins: ["Merging is one pass"],
-        activeCheck: null,
-        calibrationAnswer: "Sort of",
-      },
-    });
-    await tick();
-    const partials = sock.sent.filter((m) => m.type === "aside.partial");
-    const ops = partials.flatMap((m) => (m.type === "aside.partial" ? m.ops : []));
-    expect(ops.map((o) => o.op)).toEqual(["say", "say", "highlight"]);
-    expect(ops[0]).toMatchObject({ op: "say", text: "Good question." });
-    const done = sock.sent.find((m) => m.type === "aside.done");
-    expect(done).toMatchObject({ type: "aside.done", requestId: "q1", resume: { mode: "continue", bridge: "Back to the tree." } });
-    if (done?.type === "aside.done") {
-      expect(done.timing.model).toBe("fake");
-      expect(done.timing.firstOpMs).not.toBeNull();
+    const tutorStreamer = tutorScript("That is coming up. Short version: we split in half.\nkeep 1\nkeep 2\nHere is the splitting you asked about.\n");
+    const s = new Session(sock, { ...noDeps, tutorStreamer });
+    await s.handle({ type: "session.start", lessonId: defaultLessonId, topic: null, calibrationAnswer: null });
+    await s.handle({ type: "tutor.ask", requestId: "q1", text: "how do we get two sorted lists?", pointed: null, context, window });
+    const answers = sock.sent.filter((m) => m.type === "tutor.answer").flatMap((m) => (m.type === "tutor.answer" ? m.ops : []));
+    expect(answers.map((o) => (o.op === "say" ? o.text : o.op))).toEqual(["That is coming up.", "Short version: we split in half."]);
+    const done = sock.sent.find((m) => m.type === "tutor.done");
+    expect(done).toMatchObject({ type: "tutor.done", requestId: "q1", replan: null });
+    if (done?.type === "tutor.done") {
+      expect(done.current.map((o) => o.id)).toEqual(["b1.s6", "b1.k1"]);
+      expect(done.nextPrefix?.map((o) => (o.op === "say" ? o.text : o.op))).toEqual(["Here is the splitting you asked about."]);
+      expect(done.timing.fellBack).toBe(false);
     }
     s.close();
   });
 
-  it("falls back to a spoken apology when the model returns nothing", async () => {
+  it("surfaces tutor failures as tutor.error", async () => {
     const sock = new FakeSocket();
-    const streamer: TextStreamer = async function* () {
-      yield { kind: "final", model: "fake", inputTokens: 1, outputTokens: 0, refusal: true };
+    const failing: TextStreamer = async function* () {
+      throw new Error("boom");
     };
-    const s = new Session(sock, { streamer, tts: { available: false, voiceId: null }, logDir: tmp, beatStaggerMs: 1 });
-    await s.handle({ type: "session.start", lessonId: defaultLessonId, calibrationAnswer: null });
-    await s.handle({
-      type: "ask",
-      requestId: "q2",
-      text: "hm",
-      pointed: null,
-      context: { beatId: "b1", beatTitle: "x", currentSentence: null, recentSentences: [], boardSummary: [], pins: [], activeCheck: null, calibrationAnswer: null },
-    });
-    const partial = sock.sent.find((m) => m.type === "aside.partial");
-    expect(partial && partial.type === "aside.partial" ? partial.ops[0] : null).toMatchObject({ op: "say" });
-    expect(sock.sent.some((m) => m.type === "aside.done")).toBe(true);
+    const s = new Session(sock, { ...noDeps, tutorStreamer: failing });
+    await s.handle({ type: "session.start", lessonId: defaultLessonId, topic: null, calibrationAnswer: null });
+    await s.handle({ type: "tutor.review", requestId: "r1", context, window });
+    expect(sock.sent.some((m) => m.type === "tutor.error" && m.message === "boom")).toBe(true);
+    s.close();
+  });
+});
+
+describe("Session with the Planner", () => {
+  const block = (type: string, body: unknown) => `===${type}===\n${JSON.stringify(body)}\n===END===\n`;
+  const header = { topic: "x", title: "X", calibration: { prompt: "?", options: ["a", "b"] }, outline: [{ id: "b1", title: "One", summary: "s1" }, { id: "b2", title: "Two", summary: "s2" }] };
+  const beat = (id: string) => ({ id, title: id, summary: "s", ops: [{ op: "say", id: `${id}.s1`, text: "Hi." }, { op: "check", id: `${id}.k1`, kind: "choice", prompt: "?", options: ["a", "b"], graded: false }] });
+  const planner: PlannerStreamer = async function* (_s, _u, effort) {
+    const text = effort === "low" ? block("HEADER", header) + block("BEAT", beat("b1")) : block("BEAT", beat("b2"));
+    for (const piece of text.match(/.{1,50}/gs) ?? []) yield { kind: "text", text: piece };
+    yield { kind: "final", model: "fake", inputTokens: 1, outputTokens: 1, refusal: false };
+  };
+
+  it("writes a lesson for a topic and streams it", async () => {
+    const sock = new FakeSocket();
+    const s = new Session(sock, { ...noDeps, plannerStreamer: planner });
+    await s.handle({ type: "session.start", lessonId: null, topic: "x", calibrationAnswer: null });
+    expect(sock.sent.map((m) => m.type)).toEqual(["session.ready", "lesson.header", "lesson.beat", "lesson.beat", "lesson.complete"]);
+    expect(sock.sent[1]).toMatchObject({ type: "lesson.header", source: "planner" });
+    s.close();
+  });
+
+  it("reports a missing planner", async () => {
+    const sock = new FakeSocket();
+    const s = new Session(sock, noDeps);
+    await s.handle({ type: "session.start", lessonId: null, topic: "x", calibrationAnswer: null });
+    expect(sock.sent[1]).toMatchObject({ type: "lesson.error" });
     s.close();
   });
 });

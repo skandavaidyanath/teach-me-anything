@@ -109,10 +109,15 @@ function LatencyReadout({ state }: { state: PlayheadState }) {
   if (t.tts) parts.push(`tts ${t.tts.fetchMs} ms${t.tts.cached ? " cached" : ""}`);
   if (t.ask) {
     const a = t.ask;
-    const first = a.firstOpMs !== null ? `${(a.firstOpMs / 1000).toFixed(1)} s` : "…";
-    const audio = a.firstAudioMs !== null ? `${(a.firstAudioMs / 1000).toFixed(1)} s` : "…";
-    parts.push(`ask first ${first}, audio ${audio}`);
+    if (a.kind === "ask") {
+      const first = a.firstOpMs !== null ? `${(a.firstOpMs / 1000).toFixed(1)} s` : "…";
+      const audio = a.firstAudioMs !== null ? `${(a.firstAudioMs / 1000).toFixed(1)} s` : "…";
+      parts.push(`ask first ${first}, audio ${audio}`);
+    } else {
+      parts.push(`review ${a.doneMs !== null ? `${(a.doneMs / 1000).toFixed(1)} s` : "…"}${a.server?.fellBack ? " (kept)" : ""}`);
+    }
   }
+  if (t.reviews > 0) parts.push(`${t.reviews} review${t.reviews === 1 ? "" : "s"}`);
   if (parts.length === 0) return null;
   return (
     <div className="hidden whitespace-nowrap font-mono text-[11px] text-ink-mute lg:block" title="Latency readout: round trip, last TTS fetch, last question">

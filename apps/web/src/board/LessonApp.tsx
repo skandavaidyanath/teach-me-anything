@@ -15,21 +15,22 @@ import { useFlip } from "./useFlip";
 const HARNESS_URL = process.env["NEXT_PUBLIC_HARNESS_URL"] ?? "http://localhost:3210";
 const CONNECT_TIMEOUT_MS = 2500;
 
-/**
- * Hosts the playhead. Connects to the harness and plays what it streams; if
- * the harness is unreachable, plays the bundled lesson locally with browser
- * speech, which is exactly what v0.0 did.
- */
 export type LessonListEntry = { id: string; title: string; topic: string };
 
-export function LessonApp({ localLesson, lessonList }: { localLesson: Lesson; lessonList: LessonListEntry[] }) {
+/**
+ * Hosts the playhead. For a bundled lesson it plays what the harness streams
+ * and falls back to local playback if the harness is unreachable. For a topic
+ * it needs the harness, which has the Planner write the lesson.
+ */
+export function LessonApp({ localLesson, topic, lessonList }: { localLesson: Lesson | null; topic: string | null; lessonList: LessonListEntry[] }) {
   const [playhead, setPlayhead] = useState<Playhead | null>(null);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
+  const [failure, setFailure] = useState<string | null>(null);
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [voiceId, setVoiceId] = useState<string | null>(null);
   const speakerRef = useRef<ServerSpeaker | null>(null);
   const playheadRef = useRef<Playhead | null>(null);
-  const issues = useMemo(() => validateLesson(localLesson).issues, [localLesson]);
+  const issues = useMemo(() => (localLesson ? validateLesson(localLesson).issues : []), [localLesson]);
 
   useEffect(() => {
     let settled = false;
@@ -41,21 +42,28 @@ export function LessonApp({ localLesson, lessonList }: { localLesson: Lesson; le
       setConnection(mode);
     };
 
-    const goLocal = () => {
+    const goLocal = (why: string) => {
       if (settled) return;
       settled = true;
+      if (!localLesson) {
+        setFailure(`The tutor is offline (${why}). Pick a ready-made lesson, or start the harness and reload.`);
+        setConnection("local");
+        return;
+      }
       const ph = Playhead.fromLesson(localLesson);
       ph.detectSpeech();
       adopt(ph, "local");
     };
 
+    const startMessage = (calibration: string | null) =>
+      ({ type: "session.start", lessonId: localLesson?.id ?? null, topic: localLesson ? null : topic, calibrationAnswer: calibration }) as const;
+
     const wsUrl = HARNESS_URL.replace(/^http/, "ws") + "/ws";
     const conn = new HarnessConnection(wsUrl, {
       onStatus: (s) => {
-        if (s === "failed") goLocal();
+        if (s === "failed") goLocal("no connection");
         if (s === "open" && settled && playheadRef.current) {
-          // Reconnected: the server needs a lesson context again; the client keeps its state.
-          conn.send({ type: "session.start", lessonId: localLesson.id, calibrationAnswer: playheadRef.current.getState().calibrationAnswer });
+          conn.send(startMessage(playheadRef.current.getState().calibrationAnswer));
           setConnection("server");
         }
         if (s === "closed" && settled) setConnection("connecting");
@@ -64,7 +72,7 @@ export function LessonApp({ localLesson, lessonList }: { localLesson: Lesson; le
         const ph = playheadRef.current;
         switch (msg.type) {
           case "session.ready": {
-            if (!settled) conn.send({ type: "session.start", lessonId: localLesson.id, calibrationAnswer: null });
+            if (!settled) conn.send(startMessage(null));
             if (msg.tts.available && msg.tts.voiceId && !speakerRef.current) {
               speakerRef.current = new ServerSpeaker(HARNESS_URL, msg.tts.voiceId, (stats) => playheadRef.current?.recordTts(stats));
               setVoiceId(msg.tts.voiceId);
@@ -81,7 +89,8 @@ export function LessonApp({ localLesson, lessonList }: { localLesson: Lesson; le
             clearTimeout(timeout);
             const fresh = new Playhead(msg.header, speakerRef.current ? { speaker: speakerRef.current } : {});
             if (!speakerRef.current) fresh.detectSpeech();
-            fresh.onAsk = (req) => conn.send({ type: "ask", ...req });
+            fresh.onAsk = (req) => conn.send({ type: "tutor.ask", ...req });
+            fresh.onReview = (req) => conn.send({ type: "tutor.review", ...req });
             fresh.onEvent = (event) => conn.send({ type: "event", at: Date.now(), event });
             adopt(fresh, "server");
             pingTimer = setInterval(() => conn.send({ type: "ping", t: performance.now() }), 5000);
@@ -90,16 +99,26 @@ export function LessonApp({ localLesson, lessonList }: { localLesson: Lesson; le
           case "lesson.beat":
             ph?.appendBeat(msg.beat, msg.index);
             return;
+          case "lesson.replace":
+            ph?.replaceFrom(msg.fromIndex, msg.outline);
+            return;
           case "lesson.complete":
             return;
-          case "aside.partial":
-            ph?.appendAsideOps(msg.requestId, msg.ops);
+          case "lesson.error":
+            if (!settled) {
+              settled = true;
+              clearTimeout(timeout);
+              setFailure(msg.message);
+            }
             return;
-          case "aside.done":
-            ph?.completeAside(msg.requestId, msg.resume, msg.timing, msg.callbacks ?? []);
+          case "tutor.answer":
+            ph?.appendAnswerOps(msg.requestId, msg.ops);
             return;
-          case "aside.error":
-            ph?.failAside(msg.requestId, msg.message);
+          case "tutor.done":
+            ph?.applyWindow(msg.requestId, msg.current, msg.nextPrefix, msg.timing);
+            return;
+          case "tutor.error":
+            ph?.failTutor(msg.requestId, msg.message);
             return;
           case "pong":
             ph?.recordRtt(Math.round(performance.now() - msg.t));
@@ -110,39 +129,41 @@ export function LessonApp({ localLesson, lessonList }: { localLesson: Lesson; le
         }
       },
     });
-    const timeout = setTimeout(goLocal, CONNECT_TIMEOUT_MS);
+    // A planned lesson takes a few seconds to open; a bundled one should arrive at once.
+    const timeout = setTimeout(() => goLocal("no answer from the harness"), localLesson ? CONNECT_TIMEOUT_MS : 20000);
     conn.connect();
     return () => {
       clearTimeout(timeout);
       if (pingTimer) clearInterval(pingTimer);
       conn.close();
     };
-  }, [localLesson]);
+  }, [localLesson, topic]);
 
   const onVoice = (id: string) => {
     speakerRef.current?.setVoice(id);
     setVoiceId(id);
   };
 
-  if (!playhead) {
+  if (failure) {
     return (
-      <div className="grid h-dvh place-items-center text-ink-mute">
-        <div>Connecting to the tutor…</div>
+      <div className="grid h-dvh place-items-center px-6 text-center">
+        <div className="max-w-md">
+          <p className="text-[20px] text-ink">{failure}</p>
+          <a href="/" className="mt-4 inline-block rounded-full border border-ink px-5 py-2 text-[15px] hover:bg-ink hover:text-surface">
+            Back
+          </a>
+        </div>
       </div>
     );
   }
-  return (
-    <Board
-      playhead={playhead}
-      connection={connection}
-      voices={voices}
-      voiceId={voiceId}
-      onVoice={onVoice}
-      issues={issues}
-      lessonList={lessonList}
-      lessonId={localLesson.id}
-    />
-  );
+  if (!playhead) {
+    return (
+      <div className="grid h-dvh place-items-center text-ink-mute">
+        <div>{topic ? `Writing a lesson on ${topic}…` : "Connecting to the tutor…"}</div>
+      </div>
+    );
+  }
+  return <Board playhead={playhead} connection={connection} voices={voices} voiceId={voiceId} onVoice={onVoice} issues={issues} lessonList={lessonList} lessonId={localLesson?.id ?? null} />;
 }
 
 function Board({
@@ -162,7 +183,7 @@ function Board({
   onVoice: (id: string) => void;
   issues: ReturnType<typeof validateLesson>["issues"];
   lessonList: LessonListEntry[];
-  lessonId: string;
+  lessonId: string | null;
 }) {
   const state = useSyncExternalStore(playhead.subscribe, playhead.getState, playhead.getState);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -184,16 +205,7 @@ function Board({
 
   return (
     <div ref={rootRef} className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto]">
-      <OutlineStrip
-        state={state}
-        playhead={playhead}
-        connection={connection}
-        voices={voices}
-        voiceId={voiceId}
-        onVoice={onVoice}
-        lessonList={lessonList}
-        lessonId={lessonId}
-      />
+      <OutlineStrip state={state} playhead={playhead} connection={connection} voices={voices} voiceId={voiceId} onVoice={onVoice} lessonList={lessonList} lessonId={lessonId} />
       <CaptionBar state={state} playhead={playhead} />
       <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_400px] gap-3 px-4 pb-3">
         <Stage state={state} playhead={playhead} />

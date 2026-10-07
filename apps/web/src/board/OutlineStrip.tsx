@@ -23,7 +23,7 @@ export function OutlineStrip({
   voiceId: string | null;
   onVoice: (id: string) => void;
   lessonList: LessonListEntry[];
-  lessonId: string;
+  lessonId: string | null;
 }) {
   const started = state.mode !== "calibrating" && state.mode !== "idle";
   const dot = connection === "server" ? "bg-correct" : connection === "local" ? "bg-ink-mute" : "bg-marker";
@@ -34,20 +34,22 @@ export function OutlineStrip({
         <span className={`inline-block h-2 w-2 rounded-full ${dot}`} title={dotTitle} aria-label={dotTitle} />
         <select
           aria-label="Lesson"
-          value={lessonId}
+          value={lessonId ?? "__topic__"}
           onChange={(e) => {
             const url = new URL(window.location.href);
-            url.searchParams.set("lesson", e.target.value);
+            url.search = e.target.value === "__new__" ? "" : `?lesson=${encodeURIComponent(e.target.value)}`;
             window.location.assign(url.toString());
           }}
           className="-ml-1 cursor-pointer appearance-none bg-transparent pr-5 text-[15px] font-bold text-ink"
           style={{ backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%234b5a73' stroke-width='1.5'/></svg>\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
         >
+          {lessonId === null && <option value="__topic__">{state.title}</option>}
           {lessonList.map((l) => (
             <option key={l.id} value={l.id}>
               {l.title}
             </option>
           ))}
+          <option value="__new__">New topic…</option>
         </select>
       </h1>
       <ol className="flex flex-1 items-center" aria-label="Lesson outline">

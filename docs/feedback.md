@@ -42,3 +42,9 @@ What was raised and what changed:
 
 Question raised, answered in the plan's architecture notes: what tools do the Tutor and Planner get, and how do they share what happened. The shared record is the session workspace, already written to the per-session replay log; the next increment reads it at beat start.
 
+## Design review, 2026-10-07
+
+Raised: callbacks feel bolted-on; with context the Planner and Tutor would handle it naturally. Then: do Responder and Tutor need to be different roles at all; what tools do they get and how do they share state; when does the Planner re-trigger; and finally, leave the Dispatcher out and try a simple two-tier model first.
+
+Changed in v0.2: Responder and Tutor merged into one Tutor that edits the pending script, with the answer first and the board ops as fixed anchors. Asides, bridges, and callbacks deleted. The Planner went live for any topic, opening fast and finishing while beat 1 plays. Replan requests from the Tutor are wired through. The shared record is the session log the client and harness both keep: calibration, questions and answers, check results, skips, jumps.
+

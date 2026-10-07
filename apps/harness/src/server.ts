@@ -4,13 +4,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import { WebSocketServer } from "ws";
 import { TtsRequestSchema } from "@tma/schema";
 import { config } from "./env";
-import { makeClaudeStreamer } from "./responder";
+import { makeClaudePlannerStreamer } from "./planner";
+import { makeClaudeStreamer } from "./tutor";
 import { attachSession } from "./session";
 import { TtsService } from "./tts";
 
 const tts = new TtsService();
 const anthropic = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey }) : null;
-const streamer = anthropic ? makeClaudeStreamer(anthropic) : null;
+const tutorStreamer = anthropic ? makeClaudeStreamer(anthropic) : null;
+const plannerStreamer = anthropic ? makeClaudePlannerStreamer(anthropic) : null;
 
 type VoiceEntry = { id: string; name: string; description: string };
 let voicesCache: { at: number; voices: VoiceEntry[] } | null = null;
@@ -58,7 +60,7 @@ const server = http.createServer(async (req, res) => {
   }
   try {
     if (url.pathname === "/health") {
-      json(res, 200, { ok: true, tts: tts.available, responder: streamer !== null, model: config.responderModel });
+      json(res, 200, { ok: true, tts: tts.available, tutor: tutorStreamer !== null, planner: plannerStreamer !== null, tutorModel: config.tutorModel, plannerModel: config.plannerModel });
       return;
     }
     if (url.pathname === "/voices" && req.method === "GET") {
@@ -95,7 +97,8 @@ const server = http.createServer(async (req, res) => {
 const wss = new WebSocketServer({ server, path: "/ws" });
 wss.on("connection", (ws) => {
   const session = attachSession(ws, {
-    streamer,
+    tutorStreamer,
+    plannerStreamer,
     tts: { available: tts.available, voiceId: tts.available ? config.cartesiaVoiceId : null },
     logDir: path.join(config.dataDir, "sessions"),
   });
@@ -104,5 +107,5 @@ wss.on("connection", (ws) => {
 });
 
 server.listen(config.port, () => {
-  console.log(`[harness] listening on http://localhost:${config.port}  ws: /ws  tts: ${tts.available ? "cartesia" : "off"}  responder: ${streamer ? config.responderModel : "off"}`);
+  console.log(`[harness] listening on http://localhost:${config.port}  ws: /ws  tts: ${tts.available ? "cartesia" : "off"}  tutor: ${tutorStreamer ? config.tutorModel : "off"}  planner: ${plannerStreamer ? config.plannerModel : "off"}`);
 });

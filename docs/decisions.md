@@ -64,3 +64,11 @@ Design decisions made so far, with the reasoning. Dated 2026-10-02 unless noted.
 
 31. **Callbacks are an interim mechanism, not the design.** A model-written sentence that plays when a later beat starts closes the "explained as if new" gap while beat narration is fixed text. Once narration is generated or revised at beat start with the session record in context, callbacks are unnecessary and should go.
 
+32. **Two tiers, no Dispatcher, no asides.** Supersedes 11, 12, 30, and 31. A slow Planner writes the lesson; a fast Tutor owns the words from then on. A question is not an aside with a bridge back: the Tutor returns the pending script edited, answer first, and the lesson simply continues from the edited script. Callbacks are gone because the Tutor edits the next beat's opening directly.
+
+33. **The script is a reference for words and anchors for visuals.** The Tutor may reword, drop, or add sentences and its own drawings; it must keep every board op of the pending script, in order. The harness validates the anchors and falls back to the authored script if they are missing. This one rule keeps a rewritten beat from desyncing the stage.
+
+34. **Review only when something happened.** At a check, the Tutor reviews the next beat only if the record changed since that beat was written: a question, a wrong answer, a skip, a jump, or the calibration answer for beat 2. A quiet lesson costs no model calls and plays its authored words with audio already synthesized.
+
+35. **The Planner opens fast and finishes slow.** Header, calibration, outline, and beat 1 at low effort so the learner starts within seconds; the rest at high effort while beat 1 plays. Replans run from a future beat only, requested by the Tutor, and the Tutor covers the gap by asking early and by keeping the current beat playing.
+

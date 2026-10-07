@@ -9,6 +9,7 @@ import { BeatSchema, BranchSchema, CalibrationSchema, OpSchema, ResumeSchema, ty
  */
 
 export const OutlineEntrySchema = z.object({ id: z.string(), title: z.string(), summary: z.string().optional() });
+export type OutlineEntry = z.infer<typeof OutlineEntrySchema>;
 
 export const LessonHeaderSchema = z.object({
   id: z.string(),
@@ -33,22 +34,48 @@ export function headerFromLesson(lesson: Lesson): LessonHeader {
   };
 }
 
-/** What the client knows at the moment of a question; the Responder grounds its answer in it. */
-export const AskContextSchema = z.object({
+/** The lesson's shape and the record of what happened, rendered for the Tutor. */
+export const OutlineStatusSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  summary: z.string().optional(),
+  status: z.enum(["done", "current", "upcoming"]),
+});
+
+export const RecordEntrySchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("calibration"), answer: z.string() }),
+  z.object({ kind: z.literal("asked"), beatId: z.string(), text: z.string(), answered: z.string().nullable() }),
+  z.object({ kind: z.literal("check"), beatId: z.string(), prompt: z.string(), answer: z.string(), correct: z.boolean() }),
+  z.object({ kind: z.literal("skipped"), beatId: z.string() }),
+  z.object({ kind: z.literal("jumped"), toBeatId: z.string() }),
+]);
+export type RecordEntry = z.infer<typeof RecordEntrySchema>;
+
+export const TutorContextSchema = z.object({
   beatId: z.string(),
   beatTitle: z.string(),
-  /** The lesson's shape, so the answer can say "we covered this" or "this is coming". */
-  outline: z
-    .array(z.object({ id: z.string(), title: z.string(), summary: z.string().optional(), status: z.enum(["done", "current", "upcoming"]) }))
-    .optional(),
-  currentSentence: z.string().nullable(),
+  outline: z.array(OutlineStatusSchema),
+  record: z.array(RecordEntrySchema),
   recentSentences: z.array(z.string()),
+  currentSentence: z.string().nullable(),
   boardSummary: z.array(z.string()),
   pins: z.array(z.string()),
   activeCheck: z.string().nullable(),
-  calibrationAnswer: z.string().nullable(),
 });
-export type AskContext = z.infer<typeof AskContextSchema>;
+export type TutorContext = z.infer<typeof TutorContextSchema>;
+
+/**
+ * The pending script the Tutor may edit: the rest of the current beat and
+ * the opening of the next. Board ops in it are anchors and must be kept in
+ * order; say ops are reference wording.
+ */
+export const TutorWindowSchema = z.object({
+  currentBeatId: z.string(),
+  current: z.array(OpSchema),
+  nextBeatId: z.string().nullable(),
+  nextPrefix: z.array(OpSchema),
+});
+export type TutorWindow = z.infer<typeof TutorWindowSchema>;
 
 export const PlayheadEventSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("lesson_started"), calibrationAnswer: z.string().nullable() }),
@@ -56,8 +83,7 @@ export const PlayheadEventSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("check_answered"), checkId: z.string(), answer: z.string(), correct: z.boolean() }),
   z.object({ kind: z.literal("interrupt"), mode: z.enum(["soft", "hard"]), beatId: z.string(), opId: z.string().nullable() }),
   z.object({ kind: z.literal("nav"), command: z.string() }),
-  z.object({ kind: z.literal("aside_started"), source: z.enum(["branch", "fallback", "remote"]), title: z.string(), text: z.string() }),
-  z.object({ kind: z.literal("aside_finished"), resume: z.string() }),
+  z.object({ kind: z.literal("branch_played"), branchId: z.string(), text: z.string() }),
   z.object({ kind: z.literal("lesson_finished") }),
 ]);
 export type PlayheadEvent = z.infer<typeof PlayheadEventSchema>;
@@ -65,22 +91,31 @@ export type PlayheadEvent = z.infer<typeof PlayheadEventSchema>;
 export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("session.start"),
-    lessonId: z.string(),
+    /** A bundled lesson id, or null to have the Planner write one for `topic`. */
+    lessonId: z.string().nullable(),
+    topic: z.string().nullable(),
     calibrationAnswer: z.string().nullable(),
   }),
   z.object({ type: z.literal("event"), at: z.number(), event: PlayheadEventSchema }),
   z.object({
-    type: z.literal("ask"),
+    type: z.literal("tutor.ask"),
     requestId: z.string(),
     text: z.string().min(1),
     pointed: z.string().nullable(),
-    context: AskContextSchema,
+    context: TutorContextSchema,
+    window: TutorWindowSchema,
+  }),
+  z.object({
+    type: z.literal("tutor.review"),
+    requestId: z.string(),
+    context: TutorContextSchema,
+    window: TutorWindowSchema,
   }),
   z.object({ type: z.literal("ping"), t: z.number() }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
-export const AsideTimingSchema = z.object({
+export const TutorTimingSchema = z.object({
   requestReceivedAt: z.number(),
   firstTokenMs: z.number().nullable(),
   firstOpMs: z.number().nullable(),
@@ -88,24 +123,31 @@ export const AsideTimingSchema = z.object({
   model: z.string().nullable(),
   inputTokens: z.number().nullable(),
   outputTokens: z.number().nullable(),
+  /** The edit was rejected and the original script kept. */
+  fellBack: z.boolean(),
 });
-export type AsideTiming = z.infer<typeof AsideTimingSchema>;
+export type TutorTiming = z.infer<typeof TutorTimingSchema>;
 
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("session.ready"), sessionId: z.string(), tts: z.object({ available: z.boolean(), voiceId: z.string().nullable() }) }),
-  z.object({ type: z.literal("lesson.header"), header: LessonHeaderSchema }),
+  z.object({ type: z.literal("lesson.header"), header: LessonHeaderSchema, source: z.enum(["bundled", "planner"]) }),
   z.object({ type: z.literal("lesson.beat"), index: z.number(), beat: BeatSchema }),
+  /** Replan: beats from `fromIndex` on are replaced; the outline is replaced from that index too. */
+  z.object({ type: z.literal("lesson.replace"), fromIndex: z.number(), outline: z.array(OutlineEntrySchema), reason: z.string() }),
   z.object({ type: z.literal("lesson.complete") }),
-  z.object({ type: z.literal("aside.partial"), requestId: z.string(), ops: z.array(OpSchema) }),
+  z.object({ type: z.literal("lesson.error"), message: z.string() }),
+  /** Answer sentences and drawings, streamed as they complete. Played ahead of the pending script. */
+  z.object({ type: z.literal("tutor.answer"), requestId: z.string(), ops: z.array(OpSchema) }),
+  /** The edited window. `current` replaces the pending ops of the current beat; `nextPrefix` replaces the opening of the next beat. */
   z.object({
-    type: z.literal("aside.done"),
+    type: z.literal("tutor.done"),
     requestId: z.string(),
-    resume: ResumeSchema,
-    timing: AsideTimingSchema,
-    /** Sentences the tutor should say when a later beat starts, because the answer touched it early. */
-    callbacks: z.array(z.object({ beatId: z.string(), text: z.string() })).optional(),
+    current: z.array(OpSchema),
+    nextPrefix: z.array(OpSchema).nullable(),
+    timing: TutorTimingSchema,
+    replan: z.object({ fromBeatId: z.string(), reason: z.string() }).nullable(),
   }),
-  z.object({ type: z.literal("aside.error"), requestId: z.string(), message: z.string() }),
+  z.object({ type: z.literal("tutor.error"), requestId: z.string(), message: z.string() }),
   z.object({ type: z.literal("pong"), t: z.number(), serverTime: z.number() }),
   z.object({ type: z.literal("error"), message: z.string() }),
 ]);

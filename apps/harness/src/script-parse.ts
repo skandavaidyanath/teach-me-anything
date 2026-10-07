@@ -1,25 +1,20 @@
-import type { Element, ElementRef, Op, Resume } from "@tma/schema";
+import type { Element, ElementRef, Op } from "@tma/schema";
 
 /**
- * The Responder speaks in plain sentences with a few directive lines. This
- * parser turns a token stream into ops as soon as each sentence is complete,
- * so the first sentence can be on its way to TTS while the model is still
- * writing the second.
+ * Parses what the Tutor writes: a script, one item per line.
  *
- *   plain text                      -> say ops, one per sentence
- *   @highlight A[0] B[0]            -> highlight op (optional tone word: correct | incorrect)
- *   @pin takeaway "Title" :: body   -> pin op
- *   @resume continue Bridge text.   -> resume decision (continue | rewind | skip)
+ *   keep 7                          play line 7 of the pending script as written
+ *   plain text                      new spoken sentences (split at sentence ends)
+ *   @highlight A[0] B[0]            and the other drawing directives
+ *   @replan from=b3 reason=...      ask the Planner to rewrite from a beat
+ *
+ * Sentences stream out as soon as they are complete so TTS can start early.
  */
 
-export type ParsedChunk = { kind: "op"; op: Op } | { kind: "resume"; resume: Resume } | { kind: "callback"; beatId: string; text: string };
-
-function parseValues(raw: string): Array<number | string> {
-  return raw
-    .split(/[\s,]+/)
-    .filter(Boolean)
-    .map((t) => (/^-?\d+(\.\d+)?$/.test(t) ? Number(t) : t));
-}
+export type ParsedChunk =
+  | { kind: "op"; op: Op }
+  | { kind: "keep"; line: number }
+  | { kind: "replan"; fromBeatId: string; reason: string };
 
 // A sentence ends at . ! or ? (plus closing quotes/brackets) followed by whitespace and more text.
 const SENTENCE_END = /([.!?]["')\]]*)\s+(?=\S)/g;
@@ -32,13 +27,19 @@ export function parseRef(token: string): ElementRef | null {
   return ref;
 }
 
+function parseValues(raw: string): Array<number | string> {
+  return raw
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map((t) => (/^-?\d+(\.\d+)?$/.test(t) ? Number(t) : t));
+}
+
 function join(a: string, b: string): string {
   const x = a.trim();
   const y = b.trim();
   return x && y ? `${x} ${y}` : x || y;
 }
 
-/** Complete sentences at the front of `text`, and the unfinished remainder. */
 function splitComplete(text: string): { sentences: string[]; rest: string } {
   const sentences: string[] = [];
   let lastEnd = 0;
@@ -52,20 +53,18 @@ function splitComplete(text: string): { sentences: string[]; rest: string } {
   return { sentences, rest: text.slice(lastEnd) };
 }
 
-export class ResponderParser {
-  /** Plain text from completed lines, not yet emitted. */
+const isControlLine = (t: string) => t.startsWith("@") || /^keep\b/i.test(t);
+
+export class ScriptParser {
   private textBuffer = "";
-  /** Text since the last newline. */
   private lineBuffer = "";
   private sayCount = 0;
   private highlightCount = 0;
   private pinCount = 0;
   private showCount = 0;
-  private resume: Resume | null = null;
 
   constructor(private readonly idPrefix: string) {}
 
-  /** Feed a delta; returns whatever became complete. */
   push(delta: string): ParsedChunk[] {
     const out: ParsedChunk[] = [];
     this.lineBuffer += delta;
@@ -75,30 +74,33 @@ export class ResponderParser {
       this.lineBuffer = this.lineBuffer.slice(nl + 1);
       out.push(...this.completeLine(line));
     }
-    // A partial line that is not a directive may already hold finished sentences.
-    if (this.lineBuffer.length > 0 && !this.lineBuffer.trimStart().startsWith("@")) {
-      const { sentences, rest } = splitComplete(join(this.textBuffer, this.lineBuffer));
-      out.push(...sentences.map((s) => this.say(s)));
-      this.textBuffer = "";
-      this.lineBuffer = rest;
+    // A partial line that is not a control line may already hold finished sentences.
+    // Buffers are only rewritten when something was emitted, so no trailing space is lost mid-token.
+    if (this.lineBuffer.length > 0 && !isControlLine(this.lineBuffer.trimStart())) {
+      const combined = this.textBuffer ? `${this.textBuffer} ${this.lineBuffer}` : this.lineBuffer;
+      const { sentences, rest } = splitComplete(combined);
+      if (sentences.length > 0) {
+        out.push(...sentences.map((s) => this.say(s)));
+        this.textBuffer = "";
+        this.lineBuffer = rest;
+      }
     }
     return out;
   }
 
   private completeLine(line: string): ParsedChunk[] {
     const trimmed = line.trim();
-    if (trimmed.startsWith("@")) {
+    if (isControlLine(trimmed)) {
       const flushed = this.flushText();
-      const directive = this.parseDirective(trimmed);
-      return directive ? [...flushed, directive] : flushed;
+      const control = this.parseControl(trimmed);
+      return control ? [...flushed, control] : flushed;
     }
-    this.textBuffer = join(this.textBuffer, trimmed);
+    this.textBuffer = join(this.textBuffer, trimmed.replace(/^say\s*:?\s*/i, ""));
     const { sentences, rest } = splitComplete(this.textBuffer);
     this.textBuffer = rest;
     return sentences.map((s) => this.say(s));
   }
 
-  /** Emit everything buffered as sentences, including an unfinished tail. */
   private flushText(): ParsedChunk[] {
     const { sentences, rest } = splitComplete(this.textBuffer);
     this.textBuffer = "";
@@ -113,7 +115,9 @@ export class ResponderParser {
     return { kind: "op", op: { op: "say", id: `${this.idPrefix}.s${this.sayCount}`, text } };
   }
 
-  private parseDirective(line: string): ParsedChunk | null {
+  private parseControl(line: string): ParsedChunk | null {
+    const keep = /^keep\s+(\d+)\s*$/i.exec(line);
+    if (keep) return { kind: "keep", line: Number(keep[1]) };
     const m = /^@(\w+)\s*(.*)$/.exec(line);
     if (!m) return null;
     const name = m[1]!.toLowerCase();
@@ -137,14 +141,13 @@ export class ResponderParser {
       if (!pm) return null;
       this.pinCount++;
       const kind = (pm[1] as "takeaway" | "definition" | "equation" | "code" | undefined) ?? "takeaway";
-      const title = pm[2]!.trim();
       const body = (pm[3] ?? "").trim();
       return {
         kind: "op",
         op: {
           op: "pin",
           id: `${this.idPrefix}.p${this.pinCount}`,
-          pin: { pinId: `${this.idPrefix}.pin${this.pinCount}`, kind, title, ...(body ? { text: body } : {}) },
+          pin: { pinId: `${this.idPrefix}.pin${this.pinCount}`, kind, title: pm[2]!.trim(), ...(body ? { text: body } : {}) },
         },
       };
     }
@@ -171,24 +174,17 @@ export class ResponderParser {
       if (mm[3] !== undefined) to.index = Number(mm[3]);
       return { kind: "op", op: { op: "move", id: `${this.idPrefix}.m${this.showCount}`, from, to } };
     }
-    if (name === "callback") {
-      const cm = /^([A-Za-z][\w-]*)\s+(.+)$/.exec(rest);
-      if (!cm) return null;
-      return { kind: "callback", beatId: cm[1]!, text: cm[2]!.trim().replace(/^"|"$/g, "") };
-    }
-    if (name === "resume") {
-      const rm = /^(continue|rewind|skip)\b\s*(.*)$/.exec(rest);
-      const mode = (rm?.[1] as Resume["mode"] | undefined) ?? "continue";
-      const bridge = (rm ? rm[2] ?? "" : rest).trim();
-      this.resume = { mode, ...(bridge ? { bridge } : {}) };
-      return { kind: "resume", resume: this.resume };
+    if (name === "replan") {
+      const fm = /from=([A-Za-z][\w-]*)/.exec(rest);
+      const rm = /reason=(.*)$/.exec(rest);
+      if (!fm) return null;
+      return { kind: "replan", fromBeatId: fm[1]!, reason: (rm?.[1] ?? "").trim().replace(/^"|"$/g, "") };
     }
     return null;
   }
 
   private parseShow(name: string, rest: string): Element | null {
     if (name === "row") {
-      // @row ID "Label" (output): 8, 3, 5, 1
       const m = /^([A-Za-z][\w-]*)\s*(?:"([^"]*)")?\s*(\(output\))?\s*:\s*(.*)$/.exec(rest);
       if (!m) return null;
       const el: Element = { kind: "array_row", id: m[1]!, values: parseValues(m[4] ?? "") };
@@ -197,7 +193,6 @@ export class ResponderParser {
       return el;
     }
     if (name === "tree") {
-      // @tree ID: 8 3 5 1 9 2 7 4 | levels=1 merged=3
       const m = /^([A-Za-z][\w-]*)\s*:\s*([^|]*)(?:\|(.*))?$/.exec(rest);
       if (!m) return null;
       const values = parseValues(m[2] ?? "").filter((v): v is number => typeof v === "number");
@@ -210,7 +205,6 @@ export class ResponderParser {
       return el;
     }
     if (name === "card") {
-      // @card ID "Title" :: body
       const m = /^([A-Za-z][\w-]*)\s*(?:"([^"]*)")?\s*(?:::\s*(.*))?$/.exec(rest);
       if (!m || (!m[2] && !m[3])) return null;
       const el: Element = { kind: "text_card", id: m[1]!, body: (m[3] ?? "").trim() || (m[2] ?? "") };
@@ -218,7 +212,6 @@ export class ResponderParser {
       return el;
     }
     if (name === "formula") {
-      // @formula ID: \frac{a}{b}
       const m = /^([A-Za-z][\w-]*)\s*:\s*(.+)$/.exec(rest);
       if (!m) return null;
       return { kind: "latex", id: m[1]!, tex: m[2]!.trim() };
@@ -226,21 +219,16 @@ export class ResponderParser {
     return null;
   }
 
-  /** End of stream: emit whatever is left. */
   finish(): ParsedChunk[] {
     const tail = this.lineBuffer.trim();
     this.lineBuffer = "";
-    if (tail.startsWith("@")) {
+    if (isControlLine(tail)) {
       const flushed = this.flushText();
-      const directive = this.parseDirective(tail);
-      return directive ? [...flushed, directive] : flushed;
+      const control = this.parseControl(tail);
+      return control ? [...flushed, control] : flushed;
     }
-    this.textBuffer = join(this.textBuffer, tail);
+    this.textBuffer = join(this.textBuffer, tail.replace(/^say\s*:?\s*/i, ""));
     return this.flushText();
-  }
-
-  get sawResume(): boolean {
-    return this.resume !== null;
   }
 
   get sentences(): number {

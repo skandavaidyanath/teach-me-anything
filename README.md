@@ -2,7 +2,7 @@
 
 An agentic tutor. You ask a question like "How does merge sort work?" and within a few seconds a short, interactive, interruptible lesson begins: a voice narrates, a visual appears on a persistent board, key facts accumulate in a pinned rail, and the lesson moves one idea at a time with a check at each step. You can interrupt at any moment, point at anything on the board, say "go back", or skip ahead.
 
-**Status:** v0.1 is built. The board and playhead from v0.0, now fed by a server: the lesson streams in beat by beat over a WebSocket, narration is real text-to-speech with word timestamps, and any question the lesson did not predict goes to a live tutor whose answer streams back and plays in context. The plan is in [docs/v0-plan.md](docs/v0-plan.md), the reasoning in [docs/decisions.md](docs/decisions.md), how we will measure it in [docs/measurement.md](docs/measurement.md), and what each review said in [docs/feedback.md](docs/feedback.md).
+**Status:** v0.2 is built. Ask for a lesson on anything: a slow Planner writes it in two passes, a fast opening so you start within seconds and the rest while the first part plays. A fast Tutor owns the words from there: ask a question and it answers first, then reshapes what follows so the lesson knows what you asked. Get a check wrong and the next part is reviewed before it plays. Narration is real text-to-speech with word timestamps. Three hand-written lessons remain as references. The plan is in [docs/v0-plan.md](docs/v0-plan.md), the reasoning in [docs/decisions.md](docs/decisions.md), how we will measure it in [docs/measurement.md](docs/measurement.md), and what each review said in [docs/feedback.md](docs/feedback.md).
 
 ## Run it
 
@@ -13,7 +13,7 @@ pnpm install
 pnpm dev
 ```
 
-That starts the web app on http://localhost:3000 and the harness on http://localhost:3210. Open the web app in Chrome, Edge, or Safari. The dot next to the title is green when the harness is connected. Without the harness, or without keys, the app still runs: it plays the built-in lesson locally with the browser's own speech engine, which is what v0.0 did.
+That starts the web app on http://localhost:3000 and the harness on http://localhost:3210. Open the web app in Chrome, Edge, or Safari, type a topic or pick a ready-made lesson. The dot next to the title is green when the harness is connected. Without the harness, or without keys, the ready-made lessons still play locally with the browser's own speech engine.
 
 `pnpm test` runs the schema, reducer, dispatcher, engine, parser, and session tests. `pnpm typecheck` and `pnpm build` do what they say.
 
@@ -25,20 +25,21 @@ The point of v0.0 is to feel the rhythm and the interrupts, so push on those.
 2. When the check comes, click the wrong cell on purpose.
 3. Mid-sentence, start typing anything. The lesson pauses at the end of the sentence. Clear the box and it resumes.
 4. Ask a question the lesson predicted: "why go all the way to one?" during the splitting beat, "what if one list runs out?", "how does merge know which one to take?", "how does this compare to quicksort?"
-5. Ask something it did not predict, like "is this how Python sorts?" The live tutor answers in a sentence or two, may highlight or pin something, and bridges back to where you were. The readout next to the controls shows how long it took.
+5. Ask something it did not predict, like "is this how Python sorts?" The tutor answers in a sentence or two, may draw or highlight, and then the lesson continues from a script it has just reshaped to fit. The readout next to the controls shows how long it took.
+6. Get a check wrong on purpose, then listen to how the next part opens.
 6. Type "go back", "again", "skip", or "start over". Space pauses and resumes when the input is not focused.
 7. Click a pin in the rail, then type "explain this".
 8. Click an outline chip to jump forward or back.
 
-## What is not in v0.1
+## What is not in v0.2
 
-The lesson itself is still hand-written, in `packages/content`. The tutor only answers interrupts; it does not plan or narrate the lesson yet. Pre-authored branches are matched by regex on the client. Nothing persists beyond a per-session replay log under `data/local/`. Desktop only.
+No blackboard writing or animation yet; the board is rows, trees, cards, formulas, derivations, and diagrams. Pre-authored branches are matched by regex on the client. Nothing persists beyond a per-session replay log under `data/local/`. Desktop only. Voice input is typing only.
 
 ## Layout
 
 ```
 apps/web          Next.js client: board, playhead, speakers, dispatcher, harness connection
-apps/harness      Node service: WebSocket sessions, Responder (Claude), TTS (Cartesia), replay logs
+apps/harness      Node service: WebSocket sessions, Planner and Tutor (Claude), TTS (Cartesia), replay logs
 packages/schema   the op schema and the wire protocol, shared by everything
 packages/content  hand-written lessons until the Planner writes them
 docs              plan, decisions, measurement protocol, review notes

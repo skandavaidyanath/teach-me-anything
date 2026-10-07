@@ -30,8 +30,8 @@ export function Stage({ state, playhead }: { state: PlayheadState; playhead: Pla
     playhead.setPointed(same ? null : ref);
   };
 
-  // During an aside, anything the tutor shows sits in a layer over the lesson's own board.
-  const base = state.asideBaseIds ? new Set(state.asideBaseIds) : null;
+  // While the tutor answers, anything it draws sits in a layer over the lesson's own board.
+  const base = state.layerBaseIds ? new Set(state.layerBaseIds) : null;
   const layerIds = base ? state.board.order.filter((id) => !base.has(id)) : [];
   const baseIds = base ? state.board.order.filter((id) => base.has(id)) : state.board.order;
 

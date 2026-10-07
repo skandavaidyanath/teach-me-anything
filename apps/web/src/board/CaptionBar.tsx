@@ -24,9 +24,9 @@ export function CaptionBar({ state, playhead }: { state: PlayheadState; playhead
 
   let status: string | null = null;
   if (state.mode === "paused") status = state.typingArmed ? "Paused while you type" : "Paused";
-  else if (state.waiting === "aside") status = "Thinking…";
-  else if (state.waiting === "beat") status = "Loading the next part…";
-  else if (state.aside) status = state.aside.title;
+  else if (state.waiting === "answer") status = "Thinking…";
+  else if (state.waiting === "beat") status = "Writing the next part…";
+  else if (state.answering) status = state.answering.title;
   else if (state.typingArmed) status = "Pausing at the end of this sentence";
   else if (awaiting) status = "Your turn";
   else if (check?.result) status = check.result.correct ? "Right" : "Not quite";
@@ -36,7 +36,7 @@ export function CaptionBar({ state, playhead }: { state: PlayheadState; playhead
   return (
     <div className="px-5 pb-3 pt-1" aria-live="polite">
       <div className="flex min-h-[1.25rem] items-center gap-3 text-[13px] text-ink-soft">
-        {status && <span className={state.aside ? "rounded-full bg-marker-soft px-2 py-0.5 text-ink" : ""}>{status}</span>}
+        {status && <span className={state.answering ? "rounded-full bg-marker-soft px-2 py-0.5 text-ink" : ""}>{status}</span>}
         {state.toast && <span className={state.toast.startsWith("Pinned") ? "rounded-full bg-marker-soft px-2 py-0.5 text-ink" : "text-ink-mute"}>{state.toast}</span>}
       </div>
       <div className="mt-1 min-h-[4.5rem]">
