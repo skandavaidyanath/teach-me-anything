@@ -53,4 +53,23 @@ describe("board reducer", () => {
     expect(applyOp(s, { op: "pause", id: "10", ms: 5 })).toBe(s);
     expect(applyOp(emptyBoard, { op: "say", id: "11", text: "x" })).toBe(emptyBoard);
   });
+
+  it("move carries a cell and its identity to another row", () => {
+    const s0 = replay(ops.slice(0, 2));
+    const a = s0.elements["A"];
+    const idOfTwo = a && a.kind === "array_row" ? a.cellIds?.[0] : undefined;
+    expect(idOfTwo).toBeDefined();
+    const s1 = applyOp(s0, { op: "move", id: "m", from: { id: "A", index: 0 }, to: { id: "B" } });
+    expect(s1.elements["A"]).toMatchObject({ values: [5] });
+    expect(s1.elements["B"]).toMatchObject({ values: [1, 4, 2] });
+    const b = s1.elements["B"];
+    expect(b && b.kind === "array_row" ? b.cellIds?.[2] : undefined).toBe(idOfTwo);
+  });
+
+  it("move respects an explicit target index and ignores bad indices", () => {
+    const s0 = replay(ops.slice(0, 2));
+    const s1 = applyOp(s0, { op: "move", id: "m", from: { id: "B", index: 1 }, to: { id: "A", index: 0 } });
+    expect(s1.elements["A"]).toMatchObject({ values: [4, 2, 5] });
+    expect(applyOp(s0, { op: "move", id: "m2", from: { id: "A", index: 9 }, to: { id: "B" } })).toBe(s0);
+  });
 });

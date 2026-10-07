@@ -40,6 +40,8 @@ export type PlayheadState = {
   speakerKind: SpeakerKind;
   speechAvailable: boolean;
   toast: string | null;
+  /** A pin being shown large on the stage before it flies to the rail. */
+  pinSpotlight: { pinId: string } | null;
 };
 
 type Listener = () => void;
@@ -47,6 +49,7 @@ type Listener = () => void;
 const SETTLE_MS: Partial<Record<Op["op"], number>> = {
   show: 420,
   update: 520,
+  move: 560,
   highlight: 320,
   clear_highlights: 120,
   clear: 240,
@@ -112,6 +115,7 @@ export class Playhead {
       speakerKind: this.speaker.kind,
       speechAvailable: false,
       toast: null,
+      pinSpotlight: null,
     };
   }
 
@@ -235,9 +239,17 @@ export class Playhead {
         this.set({ mode: "awaiting_check", check: { op, result: null } });
         return;
       }
+      case "pin": {
+        // The moment of pinning: the idea appears large on the stage, holds, then flies to the rail.
+        this.set({ board: applyOp(this.state.board, op), pinSpotlight: { pinId: op.pin.pinId } });
+        await sleep(1300 * this.settleScale);
+        this.set({ pinSpotlight: null });
+        if (token !== this.runToken) return;
+        await sleep(700 * this.settleScale);
+        return;
+      }
       default: {
         this.set({ board: applyOp(this.state.board, op) });
-        if (op.op === "pin") this.toast(`Pinned: ${op.pin.title ?? op.pin.text ?? op.pin.pinId}`, 2600);
         const ms = SETTLE_MS[op.op] ?? 200;
         await sleep(ms * this.settleScale);
         return;
@@ -265,6 +277,7 @@ export class Playhead {
   /** Cancel speech, put an in-flight sentence back at the front, invalidate the loop. */
   private stopCurrent(): void {
     this.runToken++;
+    if (this.state.pinSpotlight) this.set({ pinSpotlight: null });
     if (this.speakHandle) {
       this.speakHandle.cancel();
       this.speakHandle = null;
@@ -427,6 +440,7 @@ export class Playhead {
       switch (op.op) {
         case "show":
         case "update":
+        case "move":
         case "clear":
         case "clear_highlights":
         case "pin": {

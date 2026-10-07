@@ -51,6 +51,8 @@ export const ArrayRowSchema = z.object({
   ...ElementBase,
   values: z.array(z.union([z.number(), z.string()])),
   role: z.enum(["input", "output"]).optional(),
+  /** Runtime identity per cell so a value keeps its identity when it moves between rows. Authors omit this. */
+  cellIds: z.array(z.string()).optional(),
 });
 
 /**
@@ -110,6 +112,8 @@ export type CheckKind = z.infer<typeof CheckKindSchema>;
 export type SayOp = { op: "say"; id: string; text: string };
 export type ShowOp = { op: "show"; id: string; element: Element };
 export type UpdateOp = { op: "update"; id: string; target: string; patch: Record<string, unknown> };
+/** Move one cell of an array row into another row (or another position). The cell keeps its identity, so it animates. */
+export type MoveOp = { op: "move"; id: string; from: ElementRef; to: { id: string; index?: number } };
 export type HighlightOp = { op: "highlight"; id: string; targets: ElementRef[]; tone?: HighlightTone };
 export type ClearHighlightsOp = { op: "clear_highlights"; id: string };
 export type ClearOp = { op: "clear"; id: string; targets?: string[] };
@@ -136,6 +140,7 @@ export type Op =
   | SayOp
   | ShowOp
   | UpdateOp
+  | MoveOp
   | HighlightOp
   | ClearHighlightsOp
   | ClearOp
@@ -152,6 +157,12 @@ const UpdateOpSchema = z.object({
   ...OpBase,
   target: z.string().min(1),
   patch: z.record(z.string(), z.unknown()),
+});
+const MoveOpSchema = z.object({
+  op: z.literal("move"),
+  ...OpBase,
+  from: ElementRefSchema,
+  to: z.object({ id: z.string().min(1), index: z.number().int().nonnegative().optional() }),
 });
 const HighlightOpSchema = z.object({
   op: z.literal("highlight"),
@@ -170,6 +181,7 @@ export const OpSchema: z.ZodType<Op> = z.lazy(() =>
     SayOpSchema,
     ShowOpSchema,
     UpdateOpSchema,
+    MoveOpSchema,
     HighlightOpSchema,
     ClearHighlightsOpSchema,
     ClearOpSchema,
@@ -327,6 +339,11 @@ export function validateLesson(input: unknown): { lesson: Lesson | null; issues:
 
         if (op.op === "update" && !shownElementIds.has(op.target)) {
           issues.push({ path, message: `update targets unknown element "${op.target}"` });
+        }
+        if (op.op === "move") {
+          if (!shownElementIds.has(op.from.id)) issues.push({ path, message: `move from unknown element "${op.from.id}"` });
+          if (!shownElementIds.has(op.to.id)) issues.push({ path, message: `move to unknown element "${op.to.id}"` });
+          if (op.from.index === undefined) issues.push({ path, message: "move needs from.index" });
         }
         if (op.op === "highlight") {
           for (const t of op.targets) {

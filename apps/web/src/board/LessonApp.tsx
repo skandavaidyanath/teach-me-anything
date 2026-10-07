@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { validateLesson, type Lesson } from "@tma/schema";
 import { Playhead } from "@/playhead/playhead";
 import { OutlineStrip } from "./OutlineStrip";
@@ -8,11 +8,14 @@ import { Stage } from "./Stage";
 import { PinnedRail } from "./PinnedRail";
 import { CaptionBar } from "./CaptionBar";
 import { InputBar } from "./InputBar";
+import { useFlip } from "./useFlip";
 
 export function LessonApp({ lesson }: { lesson: Lesson }) {
   const [playhead] = useState(() => new Playhead(lesson));
   const state = useSyncExternalStore(playhead.subscribe, playhead.getState, playhead.getState);
   const issues = useMemo(() => validateLesson(lesson).issues, [lesson]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useFlip(rootRef, [state.board, state.pinSpotlight]);
 
   useEffect(() => {
     playhead.detectSpeech();
@@ -33,7 +36,7 @@ export function LessonApp({ lesson }: { lesson: Lesson }) {
   }, [playhead]);
 
   return (
-    <div className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto]">
+    <div ref={rootRef} className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto]">
       <OutlineStrip lesson={lesson} state={state} playhead={playhead} />
       <CaptionBar state={state} playhead={playhead} />
       <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_400px] gap-3 px-4 pb-3">

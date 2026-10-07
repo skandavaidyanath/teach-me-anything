@@ -25,9 +25,11 @@ export function ArrayRowView({ element, state, clickable, onCell }: ElementViewP
           const ref = { id: element.id, index: i };
           const tone = toneFor(state.board, ref);
           const clickableCell = isClickable(ref);
+          const cellId = element.cellIds?.[i] ?? `${element.id}:${i}`;
           return (
             <button
-              key={`${element.id}-${i}-${String(v)}`}
+              key={cellId}
+              data-flip-id={`cell:${cellId}`}
               type="button"
               className={[
                 "cell flex h-14 min-w-14 items-center justify-center rounded-md border px-4 text-[26px] tabular-nums",

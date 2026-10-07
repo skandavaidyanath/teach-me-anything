@@ -6,6 +6,7 @@ import { ArrayRowView } from "./elements/ArrayRowView";
 import { TextCardView } from "./elements/TextCardView";
 import { LatexView } from "./elements/LatexView";
 import { SplitTreeView } from "./elements/SplitTreeView";
+import { PinSpotlight } from "./PinSpotlight";
 
 export type ElementViewProps<E extends Element> = {
   element: E;
@@ -52,6 +53,11 @@ export function Stage({ lesson, state, playhead }: { lesson: Lesson; state: Play
           }
         })}
       </div>
+
+      {state.pinSpotlight && (() => {
+        const pin = state.board.pins.find((p) => p.pinId === state.pinSpotlight?.pinId);
+        return pin ? <PinSpotlight pin={pin} /> : null;
+      })()}
 
       {state.mode === "calibrating" && lesson.calibration && (
         <Overlay>

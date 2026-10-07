@@ -37,9 +37,11 @@ export function PinnedRail({ state, playhead }: { state: PlayheadState; playhead
           </li>
         )}
         {pins.map((pin) => {
+          // While a pin is spotlighted on the stage it has not arrived here yet.
+          if (state.pinSpotlight?.pinId === pin.pinId) return null;
           const pointed = state.pointed?.id === pin.pinId;
           return (
-            <li key={pin.pinId} className="pin-in">
+            <li key={pin.pinId} className="pin-landed" data-flip-id={`pin:${pin.pinId}`}>
               <button
                 type="button"
                 onClick={() => playhead.setPointed(pointed ? null : { id: pin.pinId })}

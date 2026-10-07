@@ -16,21 +16,57 @@ export const emptyBoard: BoardState = { elements: {}, order: [], highlights: [],
  * untouched. Because every executed op is kept in history, the board at any
  * point in time is `replay(history)`, which makes seek and rewind trivial.
  */
+/** Cells need stable identity to animate between rows. Ids are derived from the op stream, so replay is deterministic. */
+function withCellIds(el: Element, tag: string): Element {
+  if (el.kind !== "array_row") return el;
+  if (el.cellIds && el.cellIds.length === el.values.length) return el;
+  return { ...el, cellIds: el.values.map((_, i) => `${el.id}:${tag}:${i}`) };
+}
+
 export function applyOp(state: BoardState, op: Op): BoardState {
   switch (op.op) {
     case "show": {
       const exists = op.element.id in state.elements;
+      const element = withCellIds(op.element, op.id);
       return {
         ...state,
-        elements: { ...state.elements, [op.element.id]: op.element },
-        order: exists ? state.order : [...state.order, op.element.id],
+        elements: { ...state.elements, [element.id]: element },
+        order: exists ? state.order : [...state.order, element.id],
       };
     }
     case "update": {
       const current = state.elements[op.target];
       if (!current) return state;
-      const next = { ...current, ...op.patch } as Element;
+      let next = { ...current, ...op.patch } as Element;
+      if (next.kind === "array_row" && "values" in op.patch) {
+        // New values have no relation to the old cells; give them fresh identity.
+        next = withCellIds({ ...next, cellIds: undefined }, op.id);
+      }
       return { ...state, elements: { ...state.elements, [op.target]: next } };
+    }
+    case "move": {
+      const src = state.elements[op.from.id];
+      const dst = state.elements[op.to.id];
+      const i = op.from.index;
+      if (!src || src.kind !== "array_row" || !dst || dst.kind !== "array_row" || i === undefined) return state;
+      if (i < 0 || i >= src.values.length) return state;
+      const srcWithIds = withCellIds(src, op.id) as typeof src;
+      const value = srcWithIds.values[i]!;
+      const cellId = srcWithIds.cellIds![i]!;
+      const removedValues = srcWithIds.values.filter((_, k) => k !== i);
+      const removedIds = srcWithIds.cellIds!.filter((_, k) => k !== i);
+      const target = (op.from.id === op.to.id ? { ...srcWithIds, values: removedValues, cellIds: removedIds } : withCellIds(dst, op.id)) as typeof dst;
+      const at = Math.min(op.to.index ?? target.values.length, target.values.length);
+      const inserted = {
+        ...target,
+        values: [...target.values.slice(0, at), value, ...target.values.slice(at)],
+        cellIds: [...(target.cellIds ?? []).slice(0, at), cellId, ...(target.cellIds ?? []).slice(at)],
+      };
+      const elements = { ...state.elements, [op.to.id]: inserted };
+      if (op.from.id !== op.to.id) elements[op.from.id] = { ...srcWithIds, values: removedValues, cellIds: removedIds };
+      // Indices in the touched rows shifted, so highlights on them no longer point at the same cells.
+      const highlights = state.highlights.filter((h) => h.ref.id !== op.from.id && h.ref.id !== op.to.id);
+      return { ...state, elements, highlights };
     }
     case "highlight": {
       const tone = op.tone ?? "marker";

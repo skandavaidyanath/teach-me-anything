@@ -57,6 +57,17 @@ describe("validateLesson", () => {
     expect(issues.some((i) => i.message.includes('unknown element "ghost"'))).toBe(true);
   });
 
+  it("validates move ops against shown elements", () => {
+    const bad = structuredClone(tiny);
+    bad.beats[0]!.ops.splice(2, 0, { op: "move", id: "m1", from: { id: "a", index: 0 }, to: { id: "ghost" } });
+    const { issues } = validateLesson(bad);
+    expect(issues.some((i) => i.message.includes('move to unknown element "ghost"'))).toBe(true);
+    const ok = structuredClone(tiny);
+    ok.beats[0]!.ops.splice(1, 0, { op: "show", id: "s2", element: { kind: "array_row", id: "b", values: [] } });
+    ok.beats[0]!.ops.splice(3, 0, { op: "move", id: "m2", from: { id: "a", index: 0 }, to: { id: "b" } });
+    expect(validateLesson(ok).issues).toEqual([]);
+  });
+
   it("rejects duplicate op ids, including inside reactions", () => {
     const bad = structuredClone(tiny);
     const check = bad.beats[0]!.ops[3]!;

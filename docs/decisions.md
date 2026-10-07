@@ -50,3 +50,5 @@ Design decisions made so far, with the reasoning. Dated 2026-10-02 unless noted.
 
 24. **Build in increments the user can check.** Each v0.x step is small enough to evaluate by using it, not reading it, before the next step builds on it. The increments table in the v0 plan is the sequence.
 
+25. **Things travel, they do not teleport.** Any value that moves between containers keeps its identity and animates along the way, through a `move` op and a FLIP pass over the board. The same pass carries a pin from its spotlight on the stage into the rail. Motion shows what changed; it is never decoration.
+

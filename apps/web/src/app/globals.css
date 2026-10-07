@@ -92,34 +92,33 @@ body {
   transform: translateY(-2px);
 }
 
-/* A new pin stamps in with the highlighter color, then settles. */
-@keyframes pin-in {
-  0% {
-    opacity: 0;
-    transform: translateY(-8px) scale(1.03);
-  }
-  18% {
-    opacity: 1;
-    transform: translateY(0) scale(1.03);
-  }
-  100% {
-    transform: none;
-  }
-}
+/* A pin that has just landed in the rail glows with the highlighter, then settles. */
 @keyframes pin-glow {
   0%,
-  40% {
+  35% {
     box-shadow: 0 0 0 3px var(--color-marker), 0 8px 24px rgba(246, 200, 79, 0.45);
   }
   100% {
     box-shadow: 0 1px 0 rgba(23, 36, 58, 0.06);
   }
 }
-.pin-in {
-  animation: pin-in 420ms var(--ease-settle) both;
+.pin-landed > button {
+  animation: pin-glow 2000ms var(--ease-settle) both;
 }
-.pin-in > button {
-  animation: pin-glow 2200ms var(--ease-settle) both;
+
+/* The pin spotlight: the idea, large, in the middle of the stage. */
+@keyframes spotlight-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.spotlight-in {
+  animation: spotlight-in 260ms var(--ease-settle) both;
 }
 
 /* Elements arriving on the stage. Motion answers an op, nothing else moves. */

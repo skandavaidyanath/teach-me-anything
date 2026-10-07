@@ -16,3 +16,11 @@ What was wrong and what changed:
 - **Idea: Khan Academy style blackboard with writing in real time.** Added as v0.2, before the Planner goes live, so the Planner can write with it.
 
 Open UX question from the build, not yet answered: "go back" during a check's reaction rewinds to before the check and re-asks it.
+
+## v0.0.1, reviewed 2026-10-06
+
+Verdict: "I like this." Two refinements, both about motion.
+
+- **Numbers should float into the merged slot, not disappear and reappear.** Changed in v0.0.2: a `move` op carries a cell, with its identity, from one row to another, and a FLIP pass animates anything whose position changed between renders. Rows also slide to make room when a new row appears.
+- **Don't say "I'm going to pin it". Show it.** Changed in v0.0.2: the spoken pin cues are gone. When a pin lands, the idea appears large over the stage for about a second, then flies into its slot in the rail and glows briefly.
+
