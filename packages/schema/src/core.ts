@@ -71,17 +71,63 @@ export const SplitTreeSchema = z.object({
   showWork: z.boolean().optional(),
 });
 
+/**
+ * A small declarative 2D diagram. Items are positioned in scene coordinates
+ * and keyed by id so they can move smoothly between updates. Highlight and
+ * click targets address items by index.
+ */
+const SceneItemBase = { id: z.string().min(1), label: z.string().optional() };
+export const SceneItemSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("circle"), ...SceneItemBase, cx: z.number(), cy: z.number(), r: z.number().positive(), dashed: z.boolean().optional() }),
+  z.object({ type: z.literal("dot"), ...SceneItemBase, cx: z.number(), cy: z.number(), r: z.number().positive().optional() }),
+  z.object({
+    type: z.literal("arrow"),
+    ...SceneItemBase,
+    x1: z.number(),
+    y1: z.number(),
+    x2: z.number(),
+    y2: z.number(),
+    role: z.enum(["force", "velocity", "fictitious", "neutral"]).optional(),
+  }),
+  z.object({ type: z.literal("line"), ...SceneItemBase, x1: z.number(), y1: z.number(), x2: z.number(), y2: z.number(), dashed: z.boolean().optional() }),
+  z.object({ type: z.literal("path"), ...SceneItemBase, d: z.string().min(1), dashed: z.boolean().optional() }),
+  z.object({ type: z.literal("text"), ...SceneItemBase, x: z.number(), y: z.number(), text: z.string(), size: z.number().optional() }),
+]);
+export type SceneItem = z.infer<typeof SceneItemSchema>;
+
+export const SceneSchema = z.object({
+  kind: z.literal("scene"),
+  ...ElementBase,
+  width: z.number().positive(),
+  height: z.number().positive(),
+  items: z.array(SceneItemSchema),
+  caption: z.string().optional(),
+});
+
+/** A stack of equations revealed one line at a time. Highlight targets address lines by index. */
+export const DerivationSchema = z.object({
+  kind: z.literal("derivation"),
+  ...ElementBase,
+  steps: z.array(z.object({ tex: z.string().min(1), note: z.string().optional() })).min(1),
+  revealed: z.number().int().nonnegative(),
+  focus: z.number().int().nonnegative().optional(),
+});
+
 export const ElementSchema = z.discriminatedUnion("kind", [
   TextCardSchema,
   LatexCardSchema,
   ArrayRowSchema,
   SplitTreeSchema,
+  SceneSchema,
+  DerivationSchema,
 ]);
 export type Element = z.infer<typeof ElementSchema>;
 export type TextCard = z.infer<typeof TextCardSchema>;
 export type LatexCard = z.infer<typeof LatexCardSchema>;
 export type ArrayRow = z.infer<typeof ArrayRowSchema>;
 export type SplitTree = z.infer<typeof SplitTreeSchema>;
+export type Scene = z.infer<typeof SceneSchema>;
+export type Derivation = z.infer<typeof DerivationSchema>;
 
 // ---------------------------------------------------------------------------
 // Pins: what accumulates in the rail
@@ -222,6 +268,8 @@ export const BeatSchema = z.object({
   id: z.string().min(1),
   /** Short title for the outline strip. */
   title: z.string().min(1),
+  /** One sentence of what this beat teaches, so the Responder can place a question in the lesson. */
+  summary: z.string().optional(),
   ops: z.array(OpSchema).min(1),
 });
 export type Beat = z.infer<typeof BeatSchema>;

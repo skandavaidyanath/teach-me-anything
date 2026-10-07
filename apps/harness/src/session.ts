@@ -119,7 +119,7 @@ export class Session {
           outputTokens: ev.outputTokens,
         };
         this.log.write("responder", { requestId: msg.requestId, text: msg.text, timing });
-        this.send({ type: "aside.done", requestId: msg.requestId, resume: ev.resume, timing });
+        this.send({ type: "aside.done", requestId: msg.requestId, resume: ev.resume, timing, callbacks: ev.callbacks });
       } else {
         this.log.write("responder_error", { requestId: msg.requestId, message: ev.message });
         this.send({ type: "aside.error", requestId: msg.requestId, message: ev.message });

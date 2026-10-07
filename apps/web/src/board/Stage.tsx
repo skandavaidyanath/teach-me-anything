@@ -6,6 +6,8 @@ import { ArrayRowView } from "./elements/ArrayRowView";
 import { TextCardView } from "./elements/TextCardView";
 import { LatexView } from "./elements/LatexView";
 import { SplitTreeView } from "./elements/SplitTreeView";
+import { SceneView } from "./elements/SceneView";
+import { DerivationView } from "./elements/DerivationView";
 import { PinSpotlight } from "./PinSpotlight";
 
 export type ElementViewProps<E extends Element> = {
@@ -28,31 +30,58 @@ export function Stage({ state, playhead }: { state: PlayheadState; playhead: Pla
     playhead.setPointed(same ? null : ref);
   };
 
+  // During an aside, anything the tutor shows sits in a layer over the lesson's own board.
+  const base = state.asideBaseIds ? new Set(state.asideBaseIds) : null;
+  const layerIds = base ? state.board.order.filter((id) => !base.has(id)) : [];
+  const baseIds = base ? state.board.order.filter((id) => base.has(id)) : state.board.order;
+
+  const render = (id: string) => {
+    const el = state.board.elements[id];
+    if (!el) return null;
+    const props = { state, clickable, onCell };
+    switch (el.kind) {
+      case "array_row":
+        return <ArrayRowView key={id} element={el} {...props} />;
+      case "text_card":
+        return <TextCardView key={id} element={el} {...props} />;
+      case "latex":
+        return <LatexView key={id} element={el} {...props} />;
+      case "split_tree":
+        return <SplitTreeView key={id} element={el} {...props} />;
+      case "scene":
+        return <SceneView key={id} element={el} {...props} />;
+      case "derivation":
+        return <DerivationView key={id} element={el} {...props} />;
+    }
+  };
+
   return (
     <section
       aria-label="Board"
       className="relative flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface"
     >
-      <div className="flex flex-1 flex-col items-center justify-center gap-9 overflow-auto p-8">
+      <div
+        className={[
+          "flex flex-1 flex-col items-center justify-center gap-9 overflow-auto p-8 transition-opacity duration-300",
+          layerIds.length > 0 ? "opacity-35" : "",
+        ].join(" ")}
+      >
         {state.board.order.length === 0 && state.mode !== "calibrating" && state.mode !== "idle" && state.mode !== "finished" && (
           <div className="text-ink-mute">{state.waiting === "beat" ? "The next part is on its way…" : "Listening…"}</div>
         )}
-        {state.board.order.map((id) => {
-          const el = state.board.elements[id];
-          if (!el) return null;
-          const props = { state, clickable, onCell };
-          switch (el.kind) {
-            case "array_row":
-              return <ArrayRowView key={id} element={el} {...props} />;
-            case "text_card":
-              return <TextCardView key={id} element={el} {...props} />;
-            case "latex":
-              return <LatexView key={id} element={el} {...props} />;
-            case "split_tree":
-              return <SplitTreeView key={id} element={el} {...props} />;
-          }
-        })}
+        {baseIds.map(render)}
       </div>
+
+      {layerIds.length > 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
+          <div
+            aria-label="While answering"
+            className="spotlight-in pointer-events-auto flex max-h-full max-w-[min(56rem,92%)] flex-col items-center gap-7 overflow-auto rounded-lg border-t-[6px] border-marker bg-surface px-10 py-8 shadow-[0_18px_48px_rgba(23,36,58,0.18)]"
+          >
+            {layerIds.map(render)}
+          </div>
+        </div>
+      )}
 
       {state.pinSpotlight && (() => {
         const pin = state.board.pins.find((p) => p.pinId === state.pinSpotlight?.pinId);

@@ -18,6 +18,7 @@ export const mergeSortLesson: Lesson = {
     {
       id: "b1",
       title: "The merge trick",
+      summary: "Merging two already-sorted lists takes one pass: compare the fronts and take the smaller.",
       ops: [
         { op: "say", id: "b1.s1", text: "Let's start with the one trick that makes merge sort work." },
         { op: "show", id: "b1.e1", element: { kind: "array_row", id: "A", label: "A", values: [2, 5, 8] } },
@@ -77,6 +78,7 @@ export const mergeSortLesson: Lesson = {
     {
       id: "b2",
       title: "Split it down",
+      summary: "Sorted lists come from splitting the input in half repeatedly until every list has one element, which is already sorted.",
       ops: [
         { op: "say", id: "b2.s1", text: "So where do sorted lists come from in the first place?" },
         { op: "clear", id: "b2.c1" },
@@ -121,6 +123,7 @@ export const mergeSortLesson: Lesson = {
     {
       id: "b3",
       title: "Merge back up",
+      summary: "Merge the single elements back up level by level using the one-pass trick; that is the whole algorithm.",
       ops: [
         { op: "say", id: "b3.s1", text: "Now we merge our way back up using the trick from the start." },
         { op: "update", id: "b3.u1", target: "T", patch: { sortedFromDepth: 3 } },
@@ -167,6 +170,7 @@ export const mergeSortLesson: Lesson = {
     {
       id: "b4",
       title: "Why n log n",
+      summary: "Every level touches all n elements once and there are log n levels, so the total work is n log n.",
       ops: [
         { op: "say", id: "b4.s1", text: "Why is this fast? Look at the work done on each level." },
         { op: "update", id: "b4.u1", target: "T", patch: { showWork: true, sortedFromDepth: 0 } },
@@ -203,6 +207,7 @@ export const mergeSortLesson: Lesson = {
     {
       id: "b5",
       title: "Wrap up",
+      summary: "Merge sort is stable, needs extra memory for merging, and is always n log n.",
       ops: [
         { op: "say", id: "b5.s1", text: "That is merge sort: split until trivial, merge with the one-pass trick, and pay n log n in total." },
         { op: "clear", id: "b5.c1" },
@@ -334,7 +339,7 @@ export const mergeSortLesson: Lesson = {
   ],
   fallback: {
     ops: [
-      { op: "say", id: "fb.s1", text: "I don't have an answer prepared for that yet. This version only knows a few questions in advance; the live tutor comes next." },
+      { op: "say", id: "fb.s1", text: "I can't answer that while I'm offline. Try again when the tutor is connected." },
     ],
     resume: { mode: "continue", bridge: "Let's pick up where we left off." },
   },

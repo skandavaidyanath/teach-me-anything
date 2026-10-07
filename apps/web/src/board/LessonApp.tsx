@@ -20,7 +20,9 @@ const CONNECT_TIMEOUT_MS = 2500;
  * the harness is unreachable, plays the bundled lesson locally with browser
  * speech, which is exactly what v0.0 did.
  */
-export function LessonApp({ localLesson }: { localLesson: Lesson }) {
+export type LessonListEntry = { id: string; title: string; topic: string };
+
+export function LessonApp({ localLesson, lessonList }: { localLesson: Lesson; lessonList: LessonListEntry[] }) {
   const [playhead, setPlayhead] = useState<Playhead | null>(null);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [voices, setVoices] = useState<VoiceOption[]>([]);
@@ -94,7 +96,7 @@ export function LessonApp({ localLesson }: { localLesson: Lesson }) {
             ph?.appendAsideOps(msg.requestId, msg.ops);
             return;
           case "aside.done":
-            ph?.completeAside(msg.requestId, msg.resume, msg.timing);
+            ph?.completeAside(msg.requestId, msg.resume, msg.timing, msg.callbacks ?? []);
             return;
           case "aside.error":
             ph?.failAside(msg.requestId, msg.message);
@@ -130,7 +132,16 @@ export function LessonApp({ localLesson }: { localLesson: Lesson }) {
     );
   }
   return (
-    <Board playhead={playhead} connection={connection} voices={voices} voiceId={voiceId} onVoice={onVoice} issues={issues} />
+    <Board
+      playhead={playhead}
+      connection={connection}
+      voices={voices}
+      voiceId={voiceId}
+      onVoice={onVoice}
+      issues={issues}
+      lessonList={lessonList}
+      lessonId={localLesson.id}
+    />
   );
 }
 
@@ -141,6 +152,8 @@ function Board({
   voiceId,
   onVoice,
   issues,
+  lessonList,
+  lessonId,
 }: {
   playhead: Playhead;
   connection: ConnectionState;
@@ -148,6 +161,8 @@ function Board({
   voiceId: string | null;
   onVoice: (id: string) => void;
   issues: ReturnType<typeof validateLesson>["issues"];
+  lessonList: LessonListEntry[];
+  lessonId: string;
 }) {
   const state = useSyncExternalStore(playhead.subscribe, playhead.getState, playhead.getState);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -169,7 +184,16 @@ function Board({
 
   return (
     <div ref={rootRef} className="grid h-dvh grid-rows-[auto_auto_minmax(0,1fr)_auto]">
-      <OutlineStrip state={state} playhead={playhead} connection={connection} voices={voices} voiceId={voiceId} onVoice={onVoice} />
+      <OutlineStrip
+        state={state}
+        playhead={playhead}
+        connection={connection}
+        voices={voices}
+        voiceId={voiceId}
+        onVoice={onVoice}
+        lessonList={lessonList}
+        lessonId={lessonId}
+      />
       <CaptionBar state={state} playhead={playhead} />
       <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_400px] gap-3 px-4 pb-3">
         <Stage state={state} playhead={playhead} />

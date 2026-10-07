@@ -359,5 +359,35 @@ describe("Playhead", () => {
     await speakTo(speaker, ph, B2_S1);
     expect(kinds).toEqual(["lesson_started", "beat_started", "nav", "beat_started"]);
   });
+
+  it("plays a callback left by an answer when that beat starts, and layers the tutor's drawings", async () => {
+    const { speaker, ph } = make();
+    let id = "";
+    ph.onAsk = (req) => (id = req.requestId);
+    ph.start(null);
+    await speakTo(speaker, ph, S2);
+    ph.submitInput("how do we get two sorted lists in the first place?");
+    await until(() => ph.getState().waiting === "aside", "waiting");
+    expect(ph.getState().asideBaseIds).toEqual(["A", "B", "OUT"]);
+    ph.appendAsideOps(id, [
+      { op: "show", id: "r.e1", element: { kind: "split_tree", id: "T9", values: [8, 3, 5, 1], revealDepth: 1 } },
+      { op: "update", id: "r.u1", target: "A", patch: { values: [] } },
+      { op: "say", id: "r.s1", text: "We split the list in half until every piece has one element." },
+    ]);
+    await speakTo(speaker, ph, "We split the list in half until every piece has one element.");
+    const s = ph.getState();
+    expect(s.board.order).toContain("T9");
+    expect(s.board.elements["A"]).toMatchObject({ values: [2, 5, 8] });
+    speaker.finish();
+    await until(() => ph.getState().waiting === "aside", "waiting for more");
+    ph.completeAside(id, { mode: "continue", bridge: "Back to merging." }, null, [{ beatId: "b2", text: "This is the splitting I sketched earlier, now step by step." }]);
+    await speakTo(speaker, ph, "Back to merging.");
+    expect(ph.getState().board.order).not.toContain("T9");
+    expect(ph.getState().asideBaseIds).toBeNull();
+    ph.skipBeat();
+    await speakTo(speaker, ph, "This is the splitting I sketched earlier, now step by step.");
+    speaker.finish();
+    await speakTo(speaker, ph, B2_S1);
+  });
 });
 

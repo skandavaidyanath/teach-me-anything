@@ -30,3 +30,15 @@ What to look at: voice quality and pacing over a full lesson, whether the word h
 
 Known before review: the generative path lands its first real sentence around 3 s after the question, with a filler at 1.5 s. The plan's "Measured so far" table has the breakdown and the order of fixes.
 
+## v0.1, reviewed 2026-10-07
+
+Verdict: the new voice is good, and answering questions mid-lesson is good.
+
+What was raised and what changed:
+
+- **The tutor explained splitting with no visual.** It could only speak, highlight, and pin. Changed in v0.1.1: it can now show rows, trees, cards, and formulas and move cells among its own rows. Drawings appear in a layer over the lesson's board, which dims behind them, and clear when the lesson resumes. It cannot alter the lesson's own elements, only highlight them, so later steps stay consistent. In the first live test it chose to answer in words and highlight the two fronts rather than draw, which is a reasonable call for that question.
+- **After the question, the lesson explained splitting as if for the first time.** Root cause: the lesson's narration is pre-written, so no model is in the loop when a beat starts. Interim change in v0.1.1: the tutor sees the outline with covered, current, and upcoming beats, says when a question jumps ahead, and leaves a model-written callback sentence that plays when that beat begins. In the live test it wrote "This is where those sorted lists come from, the thing you asked about earlier, now step by step." The reviewer's reaction: this feels bolted on and non-LLM; with the right context the Planner and Tutor would handle it naturally. Agreed. The callback is a patch over fixed text. The real fix is narration that is generated or revised at beat start with the session so far in context, and that is proposed as the next increment, ahead of blackboard writing.
+- **More lessons to evaluate across.** Added the ELBO derivation and centrifugal force, which needed two new primitives: a derivation stack revealed line by line, and a declarative 2D diagram with movable items and arrows. All three lessons validate under the same rules.
+
+Question raised, answered in the plan's architecture notes: what tools do the Tutor and Planner get, and how do they share what happened. The shared record is the session workspace, already written to the per-session replay log; the next increment reads it at beat start.
+

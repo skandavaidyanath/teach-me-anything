@@ -41,7 +41,7 @@ describe("ResponderParser", () => {
 
   it("handles a directive split across deltas and a trailing resume without newline", () => {
     const out = run(["Sure.\n@high", "light T[3]\n", "@resume skip"]);
-    expect(out.map((c) => c.kind + ":" + (c.kind === "op" ? c.op.op : c.resume.mode))).toEqual(["op:say", "op:highlight", "resume:skip"]);
+    expect(out.map((c) => c.kind + ":" + (c.kind === "op" ? c.op.op : c.kind === "resume" ? c.resume.mode : c.beatId))).toEqual(["op:say", "op:highlight", "resume:skip"]);
   });
 
   it("ignores unknown directives and bad refs", () => {
@@ -55,4 +55,25 @@ describe("ResponderParser", () => {
     expect(parseRef("OUT2[3]")).toEqual({ id: "OUT2", index: 3 });
     expect(parseRef("[1]")).toBeNull();
   });
+
+  it("parses drawing directives into show, update, and move ops", () => {
+    const out = run([
+      'Here is a small list.\n@row L "list": 8, 3, 5, 1\n@row OUT2 "merged" (output):\n@tree T2: 8 3 5 1 | levels=1\n@reveal T2 2\n@move L[0] -> OUT2\n@card C "Base case" :: One element is already sorted.\n@formula F: \\log p(x)\n',
+    ]);
+    const ops = out.filter((c) => c.kind === "op").map((c) => (c.kind === "op" ? c.op : null));
+    expect(ops.map((o) => o?.op)).toEqual(["say", "show", "show", "show", "update", "move", "show", "show"]);
+    expect(ops[1]).toMatchObject({ op: "show", element: { kind: "array_row", id: "L", label: "list", values: [8, 3, 5, 1] } });
+    expect(ops[2]).toMatchObject({ op: "show", element: { kind: "array_row", id: "OUT2", label: "merged", role: "output", values: [] } });
+    expect(ops[3]).toMatchObject({ op: "show", element: { kind: "split_tree", id: "T2", values: [8, 3, 5, 1], revealDepth: 1 } });
+    expect(ops[4]).toMatchObject({ op: "update", target: "T2", patch: { revealDepth: 2, revealed: 2 } });
+    expect(ops[5]).toMatchObject({ op: "move", from: { id: "L", index: 0 }, to: { id: "OUT2" } });
+    expect(ops[6]).toMatchObject({ op: "show", element: { kind: "text_card", id: "C", title: "Base case", body: "One element is already sorted." } });
+    expect(ops[7]).toMatchObject({ op: "show", element: { kind: "latex", id: "F", tex: "\\log p(x)" } });
+  });
+
+  it("parses callbacks for later beats", () => {
+    const out = run(["Short version: we split in half until singles.\n@callback b2 This is the splitting I sketched when you asked earlier, now step by step.\n@resume continue Back to the merge.\n"]);
+    expect(out).toContainEqual({ kind: "callback", beatId: "b2", text: "This is the splitting I sketched when you asked earlier, now step by step." });
+  });
 });
+

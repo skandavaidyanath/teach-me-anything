@@ -1,4 +1,4 @@
-import type { ElementRef, Op, Resume } from "@tma/schema";
+import type { Element, ElementRef, Op, Resume } from "@tma/schema";
 
 /**
  * The Responder speaks in plain sentences with a few directive lines. This
@@ -12,7 +12,14 @@ import type { ElementRef, Op, Resume } from "@tma/schema";
  *   @resume continue Bridge text.   -> resume decision (continue | rewind | skip)
  */
 
-export type ParsedChunk = { kind: "op"; op: Op } | { kind: "resume"; resume: Resume };
+export type ParsedChunk = { kind: "op"; op: Op } | { kind: "resume"; resume: Resume } | { kind: "callback"; beatId: string; text: string };
+
+function parseValues(raw: string): Array<number | string> {
+  return raw
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map((t) => (/^-?\d+(\.\d+)?$/.test(t) ? Number(t) : t));
+}
 
 // A sentence ends at . ! or ? (plus closing quotes/brackets) followed by whitespace and more text.
 const SENTENCE_END = /([.!?]["')\]]*)\s+(?=\S)/g;
@@ -53,6 +60,7 @@ export class ResponderParser {
   private sayCount = 0;
   private highlightCount = 0;
   private pinCount = 0;
+  private showCount = 0;
   private resume: Resume | null = null;
 
   constructor(private readonly idPrefix: string) {}
@@ -140,12 +148,80 @@ export class ResponderParser {
         },
       };
     }
+    if (name === "row" || name === "tree" || name === "card" || name === "formula") {
+      const element = this.parseShow(name, rest);
+      if (!element) return null;
+      this.showCount++;
+      return { kind: "op", op: { op: "show", id: `${this.idPrefix}.e${this.showCount}`, element } };
+    }
+    if (name === "reveal") {
+      const rm = /^([A-Za-z][\w-]*)\s+(?:levels=|lines=)?(\d+)$/.exec(rest);
+      if (!rm) return null;
+      const n = Number(rm[2]);
+      this.showCount++;
+      return { kind: "op", op: { op: "update", id: `${this.idPrefix}.u${this.showCount}`, target: rm[1]!, patch: { revealDepth: n, revealed: n } } };
+    }
+    if (name === "move") {
+      const mm = /^(\S+)\s*(?:->|to)\s*([A-Za-z][\w-]*)(?:\[(\d+)\])?$/.exec(rest);
+      if (!mm) return null;
+      const from = parseRef(mm[1]!);
+      if (!from || from.index === undefined) return null;
+      this.showCount++;
+      const to: { id: string; index?: number } = { id: mm[2]! };
+      if (mm[3] !== undefined) to.index = Number(mm[3]);
+      return { kind: "op", op: { op: "move", id: `${this.idPrefix}.m${this.showCount}`, from, to } };
+    }
+    if (name === "callback") {
+      const cm = /^([A-Za-z][\w-]*)\s+(.+)$/.exec(rest);
+      if (!cm) return null;
+      return { kind: "callback", beatId: cm[1]!, text: cm[2]!.trim().replace(/^"|"$/g, "") };
+    }
     if (name === "resume") {
       const rm = /^(continue|rewind|skip)\b\s*(.*)$/.exec(rest);
       const mode = (rm?.[1] as Resume["mode"] | undefined) ?? "continue";
       const bridge = (rm ? rm[2] ?? "" : rest).trim();
       this.resume = { mode, ...(bridge ? { bridge } : {}) };
       return { kind: "resume", resume: this.resume };
+    }
+    return null;
+  }
+
+  private parseShow(name: string, rest: string): Element | null {
+    if (name === "row") {
+      // @row ID "Label" (output): 8, 3, 5, 1
+      const m = /^([A-Za-z][\w-]*)\s*(?:"([^"]*)")?\s*(\(output\))?\s*:\s*(.*)$/.exec(rest);
+      if (!m) return null;
+      const el: Element = { kind: "array_row", id: m[1]!, values: parseValues(m[4] ?? "") };
+      if (m[2]) el.label = m[2];
+      if (m[3]) el.role = "output";
+      return el;
+    }
+    if (name === "tree") {
+      // @tree ID: 8 3 5 1 9 2 7 4 | levels=1 merged=3
+      const m = /^([A-Za-z][\w-]*)\s*:\s*([^|]*)(?:\|(.*))?$/.exec(rest);
+      if (!m) return null;
+      const values = parseValues(m[2] ?? "").filter((v): v is number => typeof v === "number");
+      if (values.length === 0) return null;
+      const opts = m[3] ?? "";
+      const levels = /levels=(\d+)/.exec(opts);
+      const merged = /merged=(\d+)/.exec(opts);
+      const el: Element = { kind: "split_tree", id: m[1]!, values, revealDepth: levels ? Number(levels[1]) : 0 };
+      if (merged) el.sortedFromDepth = Number(merged[1]);
+      return el;
+    }
+    if (name === "card") {
+      // @card ID "Title" :: body
+      const m = /^([A-Za-z][\w-]*)\s*(?:"([^"]*)")?\s*(?:::\s*(.*))?$/.exec(rest);
+      if (!m || (!m[2] && !m[3])) return null;
+      const el: Element = { kind: "text_card", id: m[1]!, body: (m[3] ?? "").trim() || (m[2] ?? "") };
+      if (m[2] && m[3]) el.title = m[2];
+      return el;
+    }
+    if (name === "formula") {
+      // @formula ID: \frac{a}{b}
+      const m = /^([A-Za-z][\w-]*)\s*:\s*(.+)$/.exec(rest);
+      if (!m) return null;
+      return { kind: "latex", id: m[1]!, tex: m[2]!.trim() };
     }
     return null;
   }

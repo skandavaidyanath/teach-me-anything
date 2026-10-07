@@ -8,7 +8,7 @@ import { BeatSchema, BranchSchema, CalibrationSchema, OpSchema, ResumeSchema, ty
  * which is the shape a live Planner will produce.
  */
 
-export const OutlineEntrySchema = z.object({ id: z.string(), title: z.string() });
+export const OutlineEntrySchema = z.object({ id: z.string(), title: z.string(), summary: z.string().optional() });
 
 export const LessonHeaderSchema = z.object({
   id: z.string(),
@@ -27,7 +27,7 @@ export function headerFromLesson(lesson: Lesson): LessonHeader {
     topic: lesson.topic,
     title: lesson.title,
     ...(lesson.calibration ? { calibration: lesson.calibration } : {}),
-    outline: lesson.beats.map((b) => ({ id: b.id, title: b.title })),
+    outline: lesson.beats.map((b) => ({ id: b.id, title: b.title, ...(b.summary ? { summary: b.summary } : {}) })),
     branches: lesson.branches,
     fallback: lesson.fallback,
   };
@@ -37,6 +37,10 @@ export function headerFromLesson(lesson: Lesson): LessonHeader {
 export const AskContextSchema = z.object({
   beatId: z.string(),
   beatTitle: z.string(),
+  /** The lesson's shape, so the answer can say "we covered this" or "this is coming". */
+  outline: z
+    .array(z.object({ id: z.string(), title: z.string(), summary: z.string().optional(), status: z.enum(["done", "current", "upcoming"]) }))
+    .optional(),
   currentSentence: z.string().nullable(),
   recentSentences: z.array(z.string()),
   boardSummary: z.array(z.string()),
@@ -93,7 +97,14 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("lesson.beat"), index: z.number(), beat: BeatSchema }),
   z.object({ type: z.literal("lesson.complete") }),
   z.object({ type: z.literal("aside.partial"), requestId: z.string(), ops: z.array(OpSchema) }),
-  z.object({ type: z.literal("aside.done"), requestId: z.string(), resume: ResumeSchema, timing: AsideTimingSchema }),
+  z.object({
+    type: z.literal("aside.done"),
+    requestId: z.string(),
+    resume: ResumeSchema,
+    timing: AsideTimingSchema,
+    /** Sentences the tutor should say when a later beat starts, because the answer touched it early. */
+    callbacks: z.array(z.object({ beatId: z.string(), text: z.string() })).optional(),
+  }),
   z.object({ type: z.literal("aside.error"), requestId: z.string(), message: z.string() }),
   z.object({ type: z.literal("pong"), t: z.number(), serverTime: z.number() }),
   z.object({ type: z.literal("error"), message: z.string() }),

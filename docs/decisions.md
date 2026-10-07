@@ -60,3 +60,7 @@ Design decisions made so far, with the reasoning. Dated 2026-10-02 unless noted.
 
 29. **The client falls back to local on any harness failure.** No connection, no header within 2.5 seconds, or an answer that errors all degrade to the bundled lesson, browser speech, or the canned apology. The lesson never stalls on the server.
 
+30. **The tutor may draw, in a layer.** Anything the Responder shows renders over the lesson's board, which dims behind it, and is removed when the lesson resumes. It may highlight the lesson's own elements but never alter or clear them, so the lesson's later ops stay valid. Same rule for pre-authored branches.
+
+31. **Callbacks are an interim mechanism, not the design.** A model-written sentence that plays when a later beat starts closes the "explained as if new" gap while beat narration is fixed text. Once narration is generated or revised at beat start with the session record in context, callbacks are unnecessary and should go.
+

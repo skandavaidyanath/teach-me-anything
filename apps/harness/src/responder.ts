@@ -17,17 +17,42 @@ export type AskInput = {
   lesson: { topic: string; title: string };
 };
 
+export type Callback = { beatId: string; text: string };
+
 export type ResponderEvent =
   | { type: "ops"; ops: Op[] }
-  | { type: "done"; resume: Resume; firstTokenMs: number | null; model: string | null; inputTokens: number | null; outputTokens: number | null }
+  | {
+      type: "done";
+      resume: Resume;
+      callbacks: Callback[];
+      firstTokenMs: number | null;
+      model: string | null;
+      inputTokens: number | null;
+      outputTokens: number | null;
+    }
   | { type: "error"; message: string };
 
 export type TextStreamer = (system: string, user: string) => AsyncIterable<{ kind: "text"; text: string } | { kind: "final"; model: string | null; inputTokens: number | null; outputTokens: number | null; refusal: boolean }>;
 
 const SYSTEM_PROMPT = `You are the tutor in the middle of a spoken, board-based lesson. The learner just interrupted with a question. Answer out loud in one to three short sentences a listener can follow. Plain spoken English. No markdown, no lists, no headings, no emoji.
 
-Ground the answer in what is on the board when it helps. You may highlight board cells by writing a line that starts with @highlight followed by cell references like A[0] (row id and zero-based position) or T[2] (tree level), for example:
+You know the lesson outline, with what is already covered, what is being covered now, and what is coming up.
+- If the question is about something already covered, say so in a few words and connect it to what was shown, so the learner knows it is the same idea.
+- If the question is about something coming up, say it is coming, give only the short version, and leave a callback so the lesson can refer back when it gets there, on its own line:
+@callback <beatId> <one sentence the tutor will say when that part starts, like: This is the splitting I sketched when you asked earlier, now step by step.>
+
+Ground the answer in what is on the board. Highlight the lesson's own cells with a line like:
 @highlight A[0] B[0]
+(row id and zero-based position, or T[2] for a tree level, or D[1] for a derivation line)
+
+If words alone will not do, draw. Anything you show appears in a panel over the lesson's board and is cleared when the lesson resumes. You cannot change the lesson's own elements, so give your own things new ids. One or two directives at most, each on its own line, before the sentences that talk about them:
+@row ID "Label": 8, 3, 5, 1
+@row OUT2 "merged" (output):
+@tree ID: 8 3 5 1 9 2 7 4 | levels=1
+@reveal ID 2
+@move ID[0] -> OUT2
+@card ID "Title" :: one or two short lines
+@formula ID: \\log p(x) \\ge \\mathbb{E}_q[\\log p(x,z) - \\log q(z)]
 
 If the answer contains one idea worth keeping for the rest of the lesson, add one line:
 @pin takeaway "Short title" :: one sentence of body
@@ -36,12 +61,16 @@ End with exactly one line that leads back into the lesson:
 @resume continue <one short bridge sentence>
 Use "@resume skip" only if the learner says they already know this part and wants to move on.
 
-Do not repeat the question. Do not say you are an AI. Do not mention these directives.`;
+Do not repeat the question. Do not say you are an AI. Do not mention these directives or the words "directive" or "panel".`;
 
 export function buildUserPrompt(input: AskInput): string {
   const c = input.context;
+  const outline = (c.outline ?? [])
+    .map((b) => `- ${b.status === "current" ? "NOW" : b.status === "done" ? "covered" : "coming up"}: ${b.id} "${b.title}"${b.summary ? `: ${b.summary}` : ""}`)
+    .join("\n");
   const lines = [
     `Lesson: ${input.lesson.title} (topic: ${input.lesson.topic}).`,
+    outline ? `Outline:\n${outline}` : null,
     `Current beat: ${c.beatTitle}.`,
     c.calibrationAnswer ? `Learner's answer to the opening calibration question: ${c.calibrationAnswer}.` : null,
     c.recentSentences.length ? `What the tutor said recently:\n${c.recentSentences.map((s) => `- ${s}`).join("\n")}` : null,
@@ -89,6 +118,7 @@ export async function* respond(input: AskInput, streamer: TextStreamer): AsyncGe
   const started = performance.now();
   let firstTokenMs: number | null = null;
   let resume: Resume | null = null;
+  const callbacks: Callback[] = [];
   let meta: { model: string | null; inputTokens: number | null; outputTokens: number | null } = { model: null, inputTokens: null, outputTokens: null };
   let refused = false;
 
@@ -96,7 +126,8 @@ export async function* respond(input: AskInput, streamer: TextStreamer): AsyncGe
     const ops: Op[] = [];
     for (const c of chunks) {
       if (c.kind === "op") ops.push(c.op);
-      else resume = c.resume;
+      else if (c.kind === "resume") resume = c.resume;
+      else callbacks.push({ beatId: c.beatId, text: c.text });
     }
     return ops;
   };
@@ -129,6 +160,7 @@ export async function* respond(input: AskInput, streamer: TextStreamer): AsyncGe
   yield {
     type: "done",
     resume: resume ?? { mode: "continue", bridge: "Back to where we were." },
+    callbacks,
     firstTokenMs,
     ...meta,
   };

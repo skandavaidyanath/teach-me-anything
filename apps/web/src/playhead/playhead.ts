@@ -75,6 +75,8 @@ export type PlayheadState = {
   speechAvailable: boolean;
   toast: string | null;
   pinSpotlight: { pinId: string } | null;
+  /** During an aside: the ids that were on the board before it, so the UI can layer the rest on top. */
+  asideBaseIds: string[] | null;
   telemetry: Telemetry;
 };
 
@@ -181,9 +183,13 @@ export class Playhead {
       speechAvailable: !!this.voiceSpeaker,
       toast: null,
       pinSpotlight: null,
+      asideBaseIds: null,
       telemetry: { rttMs: null, tts: null, ask: null },
     };
   }
+
+  /** Sentences to say when a beat starts, left by an answer that touched that beat early. */
+  private pendingCallbacks = new Map<string, string>();
 
   /** Local mode: the whole lesson is already here. */
   static fromLesson(lesson: Lesson, opts: PlayheadOptions = {}): Playhead {
@@ -251,6 +257,11 @@ export class Playhead {
     const beat = this.beats[index]!;
     this.beatStarts[index] = this.history.length;
     this.queue = beat.ops.map((op) => ({ op, origin: "beat" as const }));
+    const callback = this.pendingCallbacks.get(beat.id);
+    if (callback) {
+      this.pendingCallbacks.delete(beat.id);
+      this.queue.unshift({ op: { op: "say", id: `callback.${beat.id}`, text: callback }, origin: "bridge" });
+    }
     this.prefetchUpcoming();
     this.emit({ kind: "beat_started", beatId: beat.id, index });
   }
@@ -305,6 +316,7 @@ export class Playhead {
     this.beatStarts = [];
     this.asideFrame = null;
     this.waitingForBeat = false;
+    this.pendingCallbacks.clear();
     this.set({
       mode: "playing",
       beatIndex: 0,
@@ -313,6 +325,7 @@ export class Playhead {
       caption: null,
       check: null,
       aside: null,
+      asideBaseIds: null,
       waiting: null,
       calibrationAnswer,
     });
@@ -609,8 +622,26 @@ export class Playhead {
     }
     this.queue = ops.map((op) => ({ op, origin: "aside" as const }));
     this.softPaused = false;
-    this.set({ mode: "playing", aside: { title }, check: null, typingArmed: false, waiting: null });
+    this.set({ mode: "playing", aside: { title }, check: null, typingArmed: false, waiting: null, asideBaseIds: [...this.asideFrame.stageIdsBefore] });
     void this.run();
+  }
+
+  /** The tutor may draw its own things and highlight the lesson's, but never alter the lesson's elements. */
+  private guardAsideOps(ops: Op[], base: Set<string>): Op[] {
+    return ops.filter((op) => {
+      switch (op.op) {
+        case "show":
+          return !base.has(op.element.id);
+        case "update":
+          return !base.has(op.target);
+        case "move":
+          return !base.has(op.from.id) && !base.has(op.to.id);
+        case "clear":
+          return false;
+        default:
+          return true;
+      }
+    });
   }
 
   /** Ops streamed from the Responder for the open remote aside. */
@@ -622,8 +653,9 @@ export class Playhead {
       const ask = this.state.telemetry.ask;
       if (ask && ask.requestId === requestId) this.setTelemetry({ ask: { ...ask, firstOpMs: Math.round(performance.now() - ask.sentAt) } });
     }
+    const allowed = this.guardAsideOps(ops, frame.stageIdsBefore);
     frame.receivedOps += ops.length;
-    this.queue.push(...ops.map((op) => ({ op, origin: "aside" as const })));
+    this.queue.push(...allowed.map((op) => ({ op, origin: "aside" as const })));
     this.prefetchUpcoming();
     if (this.state.waiting === "aside" && this.state.mode === "playing") {
       this.set({ waiting: null });
@@ -631,11 +663,16 @@ export class Playhead {
     }
   }
 
-  completeAside(requestId: string, resume: Resume, timing: AsideTiming | null = null): void {
+  completeAside(requestId: string, resume: Resume, timing: AsideTiming | null = null, callbacks: Array<{ beatId: string; text: string }> = []): void {
     const frame = this.asideFrame;
     if (!frame || frame.requestId !== requestId) return;
     frame.resume = resume;
     frame.open = false;
+    for (const cb of callbacks) {
+      // Only beats still ahead of us can take a callback.
+      const idx = this.header.outline.findIndex((b) => b.id === cb.beatId);
+      if (idx > this.state.beatIndex) this.pendingCallbacks.set(cb.beatId, cb.text);
+    }
     const ask = this.state.telemetry.ask;
     if (ask && ask.requestId === requestId) this.setTelemetry({ ask: { ...ask, doneMs: Math.round(performance.now() - ask.sentAt), server: timing } });
     if (this.state.waiting === "aside" && this.state.mode === "playing") {
@@ -736,7 +773,7 @@ export class Playhead {
       }
     }
     this.prefetchUpcoming();
-    this.set({ aside: null });
+    this.set({ aside: null, asideBaseIds: null });
   }
 
   private buildAskContext(): AskContext {
@@ -753,12 +790,27 @@ export class Playhead {
           return `${el.id}: card${el.title ? ` "${el.title}"` : ""}: ${el.body.replace(/\n/g, " / ")}`;
         case "latex":
           return `${el.id}: formula ${el.tex}`;
+        case "scene":
+          return `${el.id}: diagram${el.label ? ` "${el.label}"` : ""} with ${el.items
+            .map((it, i) => `[${i}] ${it.type}${it.label ? ` "${it.label}"` : ""}`)
+            .join(", ")}`;
+        case "derivation": {
+          const shown = el.steps.slice(0, el.revealed).map((st, i) => `[${i}] ${st.tex}${st.note ? ` (${st.note})` : ""}`);
+          return `${el.id}: derivation${el.label ? ` "${el.label}"` : ""}, ${el.revealed} of ${el.steps.length} lines shown: ${shown.join(" ; ")}`;
+        }
       }
     });
+    const outline = this.header.outline.map((b, i) => ({
+      id: b.id,
+      title: b.title,
+      ...(b.summary ? { summary: b.summary } : {}),
+      status: (i < this.state.beatIndex || this.state.completedBeats.includes(b.id) ? "done" : i === this.state.beatIndex ? "current" : "upcoming") as "done" | "current" | "upcoming",
+    }));
     const activeCheck = this.asideFrame?.savedCheck?.op.prompt ?? (this.state.mode === "awaiting_check" ? (this.state.check?.op.prompt ?? null) : null);
     return {
       beatId: this.beatId,
       beatTitle: this.beat?.title ?? this.header.outline[this.state.beatIndex]?.title ?? "",
+      outline,
       currentSentence: this.state.caption?.text ?? null,
       recentSentences: says.slice(-4),
       boardSummary: summary,
@@ -799,7 +851,7 @@ export class Playhead {
     }
     this.popToPreviousSentence();
     this.toast("Going back");
-    this.set({ mode: "playing", check: null, aside: null, waiting: null });
+    this.set({ mode: "playing", check: null, aside: null, asideBaseIds: null, waiting: null });
     void this.run();
   }
 
@@ -831,7 +883,7 @@ export class Playhead {
     }
     this.fastForward(remaining);
     this.queue = [];
-    this.set({ mode: "playing", aside: null, check: null, caption: null, waiting: null });
+    this.set({ mode: "playing", aside: null, asideBaseIds: null, check: null, caption: null, waiting: null });
     this.toast("Skipping ahead");
     void this.run();
   }
@@ -871,7 +923,7 @@ export class Playhead {
       this.set({ completedBeats: completed });
     }
     this.recomputeBoard();
-    this.set({ mode: "playing", beatIndex: index, check: null, aside: null, caption: null, waiting: null });
+    this.set({ mode: "playing", beatIndex: index, check: null, aside: null, asideBaseIds: null, caption: null, waiting: null });
     if (this.beats[index]) {
       this.waitingForBeat = false;
       this.loadBeatQueue(index);
@@ -900,8 +952,12 @@ export class Playhead {
       }
     } else {
       const el = this.state.board.elements[answer.id];
-      const value = el && el.kind === "array_row" && answer.index !== undefined ? el.values[answer.index] : undefined;
-      answerText = value !== undefined ? String(value) : answer.id;
+      answerText = answer.id;
+      if (el && answer.index !== undefined) {
+        if (el.kind === "array_row" && el.values[answer.index] !== undefined) answerText = String(el.values[answer.index]);
+        else if (el.kind === "scene") answerText = el.items[answer.index]?.label ?? el.items[answer.index]?.id ?? answer.id;
+        else if (el.kind === "derivation") answerText = `line ${answer.index + 1}`;
+      }
       if (graded) {
         const expected = op.expected;
         correct = !!expected && !Array.isArray(expected) && sameRef(expected, answer);
