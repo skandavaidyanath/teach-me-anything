@@ -28,3 +28,6 @@ logs/
 .idea/
 .vscode/
 *.log
+
+# playwright-cli session files
+.playwright-cli/

@@ -73,3 +73,15 @@ describe("board reducer", () => {
     expect(applyOp(s0, { op: "move", id: "m2", from: { id: "A", index: 9 }, to: { id: "B" } })).toBe(s0);
   });
 });
+
+describe("component state", () => {
+  it("merges a state patch instead of replacing the state", () => {
+    const s = replay([
+      { op: "show", id: "1", element: { kind: "component", id: "P", width: 600, height: 360, code: "<svg/>", state: { length: 1, showForces: true } } },
+      { op: "update", id: "2", target: "P", patch: { state: { length: 2 } } },
+    ]);
+    expect(s.elements["P"]).toMatchObject({ state: { length: 2, showForces: true } });
+    const t = applyOp(s, { op: "update", id: "3", target: "P", patch: { title: "Renamed" } });
+    expect(t.elements["P"]).toMatchObject({ title: "Renamed", state: { length: 2, showForces: true } });
+  });
+});

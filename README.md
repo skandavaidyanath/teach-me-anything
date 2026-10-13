@@ -2,7 +2,7 @@
 
 An agentic tutor. You ask a question like "How does merge sort work?" and within a few seconds a short, interactive, interruptible lesson begins: a voice narrates, a visual appears on a persistent board, key facts accumulate in a pinned rail, and the lesson moves one idea at a time with a check at each step. You can interrupt at any moment, point at anything on the board, say "go back", or skip ahead.
 
-**Status:** v0.2 is built. Ask for a lesson on anything: a slow Planner writes it in two passes, a fast opening so you start within seconds and the rest while the first part plays. A fast Tutor owns the words from there: ask a question and it answers first, then reshapes what follows so the lesson knows what you asked. Get a check wrong and the next part is reviewed before it plays. Narration is real text-to-speech with word timestamps. Three hand-written lessons remain as references. The plan is in [docs/v0-plan.md](docs/v0-plan.md), the reasoning in [docs/decisions.md](docs/decisions.md), how we will measure it in [docs/measurement.md](docs/measurement.md), and what each review said in [docs/feedback.md](docs/feedback.md).
+**Status:** v0.3 is built. Ask for a lesson on anything: a slow Planner writes it in passes, a fast opening so you start within seconds and the rest while the first part plays. When the topic moves, the Planner writes a figure as code, a small simulation that runs on the board, and drives it from later parts. A fast Tutor owns the words from there: every question goes to it, it draws before it talks, it can switch the figure to another viewpoint or state for an answer, and if you say you still don't get it, it must change the picture. Get a check wrong and the next part is reviewed before it plays. Narration is real text-to-speech with word timestamps. Three hand-written lessons remain as references. The plan is in [docs/v0-plan.md](docs/v0-plan.md), the reasoning in [docs/decisions.md](docs/decisions.md), how we will measure it in [docs/measurement.md](docs/measurement.md), what each review said in [docs/feedback.md](docs/feedback.md), and the visual reference we are aiming at in [docs/references.md](docs/references.md).
 
 ## Run it
 
@@ -31,9 +31,9 @@ The point of v0.0 is to feel the rhythm and the interrupts, so push on those.
 7. Click a pin in the rail, then type "explain this".
 8. Click an outline chip to jump forward or back.
 
-## What is not in v0.2
+## What is not in v0.3
 
-No blackboard writing or animation yet; the board is rows, trees, cards, formulas, derivations, and diagrams. Pre-authored branches are matched by regex on the client. Nothing persists beyond a per-session replay log under `data/local/`. Desktop only. Voice input is typing only.
+No blackboard writing yet, and no art direction: figures are the model's own SVG. Beat 1 never carries a figure, so a lesson on something physical shows it moving from part 2. Nothing persists beyond a per-session replay log under `data/local/`. Desktop only. Voice input is typing only.
 
 ## Layout
 

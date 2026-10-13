@@ -193,7 +193,7 @@ export const centrifugalLesson: Lesson = {
         {
           op: "show",
           id: "c4.e1",
-          element: { kind: "latex", id: "FORMULA", tex: "F = \\frac{m v^2}{r} = m\\,\\omega^2 r", caption: "the pull a circle of radius r demands at speed v" },
+          element: { kind: "latex", id: "FORMULA", tex: "F = \\frac{m v^2}{r}", caption: "the pull a circle of radius r demands at speed v" },
         },
         { op: "say", id: "c4.s2", text: "Double the speed and you need four times the pull, because the ball changes direction twice as often and by twice as much each time." },
         { op: "say", id: "c4.s3", text: "Make the circle bigger at the same speed and the pull gets smaller, because the turn is gentler." },
@@ -204,7 +204,7 @@ export const centrifugalLesson: Lesson = {
             pinId: "F-formula",
             kind: "equation",
             title: "How much pull a circle needs",
-            tex: "F = \\frac{m v^2}{r} = m\\,\\omega^2 r",
+            tex: "F = \\frac{m v^2}{r}",
           },
         },
         {

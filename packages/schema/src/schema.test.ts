@@ -104,3 +104,26 @@ describe("normalizeAnswer", () => {
     expect(normalizeAnswer("4!")).toBe("4");
   });
 });
+
+describe("component element", () => {
+  it("validates a figure written as code and its state update", () => {
+    const lesson: Lesson = {
+      ...tiny,
+      beats: [
+        {
+          id: "b1",
+          title: "Fig",
+          ops: [
+            { op: "show", id: "e1", element: { kind: "component", id: "P", width: 600, height: 360, code: "<svg/>", state: { length: 1 }, parts: ["bob"] } },
+            { op: "update", id: "u1", target: "P", patch: { state: { length: 2 } } },
+            { op: "highlight", id: "h1", targets: [{ id: "P", index: 0 }] },
+            { op: "check", id: "c1", kind: "click_cell", prompt: "Click the bob.", targets: [{ id: "P", index: 0 }], expected: { id: "P", index: 0 } },
+          ],
+        },
+      ],
+    };
+    expect(validateLesson(lesson).issues).toEqual([]);
+    const bad = { ...lesson, beats: [{ ...lesson.beats[0]!, ops: [{ op: "show", id: "e1", element: { kind: "component", id: "P", width: 600, height: 360 } }] }] };
+    expect(validateLesson(bad).lesson).toBeNull();
+  });
+});

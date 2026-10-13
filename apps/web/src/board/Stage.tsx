@@ -8,6 +8,7 @@ import { LatexView } from "./elements/LatexView";
 import { SplitTreeView } from "./elements/SplitTreeView";
 import { SceneView } from "./elements/SceneView";
 import { DerivationView } from "./elements/DerivationView";
+import { ComponentView } from "./elements/ComponentView";
 import { PinSpotlight } from "./PinSpotlight";
 
 export type ElementViewProps<E extends Element> = {
@@ -52,6 +53,8 @@ export function Stage({ state, playhead }: { state: PlayheadState; playhead: Pla
         return <SceneView key={id} element={el} {...props} />;
       case "derivation":
         return <DerivationView key={id} element={el} {...props} />;
+      case "component":
+        return <ComponentView key={id} element={el} {...props} />;
     }
   };
 

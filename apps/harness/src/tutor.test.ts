@@ -120,3 +120,52 @@ describe("tutor", () => {
     expect(answers[0]).toMatchObject({ op: "say", id: "t.q3.fallback" });
   });
 });
+
+describe("the repeat rule, enforced", () => {
+  const repeatContext: TutorContext = {
+    ...context,
+    record: [{ kind: "asked", beatId: "b1", text: "why does it keep going straight?", answered: 'Nothing pushes it. [drew: scene "a car"]' }],
+  };
+  const wordsThenPicture: TextStreamer = async function* (_system, user) {
+    const text = /Return exactly one drawing directive/.test(user)
+      ? '@scene car2 400x300: [{"id":"you","type":"dot","cx":10,"cy":10,"label":"you"}]\n'
+      : "Let me say it another way.\nThe door pushes you inward.\nkeep 1\nkeep 2\nkeep 3\nkeep 4\nkeep 5\nkeep 6\nkeep 7\n";
+    for (const piece of text.match(/.{1,23}/gs) ?? []) yield { kind: "text", text: piece };
+    yield { kind: "final", model: "fake", inputTokens: 10, outputTokens: 5, refusal: false };
+  };
+
+  it("asks once more for a picture when a repeat was answered in words", async () => {
+    const events = [];
+    for await (const ev of tutor({ requestId: "r9", kind: "ask", text: "no i still dont get it", pointed: null, context: repeatContext, window, lesson: { topic: "t", title: "T" } }, wordsThenPicture)) events.push(ev);
+    const answers = events.filter((e) => e.type === "answer").flatMap((e) => (e.type === "answer" ? e.ops : []));
+    expect(answers.map((o) => o.op)).toEqual(["say", "say", "show"]);
+    expect(answers[2]).toMatchObject({ op: "show", element: { kind: "scene", id: "car2" } });
+    const done = events.find((e) => e.type === "done");
+    expect(done).toMatchObject({ type: "done", addendum: true, fellBack: false });
+  });
+
+  it("leaves a first question alone, and a repeat that drew", async () => {
+    const first = [];
+    for await (const ev of tutor({ requestId: "r10", kind: "ask", text: "why does it keep going straight?", pointed: null, context, window, lesson: { topic: "t", title: "T" } }, wordsThenPicture)) first.push(ev);
+    expect(first.filter((e) => e.type === "answer").flatMap((e) => (e.type === "answer" ? e.ops.map((o) => o.op) : []))).toEqual(["say", "say"]);
+    expect(first.find((e) => e.type === "done")).toMatchObject({ addendum: false });
+    const drew: TextStreamer = async function* () {
+      yield { kind: "text", text: '@update P: {"frame":"rotating"}\nFrom the seat it looks still.\nkeep 1\nkeep 2\nkeep 3\nkeep 4\nkeep 5\nkeep 6\nkeep 7\n' };
+      yield { kind: "final", model: "fake", inputTokens: 10, outputTokens: 5, refusal: false };
+    };
+    const second = [];
+    for await (const ev of tutor({ requestId: "r11", kind: "ask", text: "still lost", pointed: null, context: repeatContext, window, lesson: { topic: "t", title: "T" } }, drew)) second.push(ev);
+    expect(second.find((e) => e.type === "done")).toMatchObject({ addendum: false });
+  });
+
+  it("ignores a @nodraw line", async () => {
+    const out = [];
+    const nodraw: TextStreamer = async function* () {
+      yield { kind: "text", text: "@nodraw it is a definition\nIt means the pull toward the center.\nkeep 1\nkeep 2\nkeep 3\nkeep 4\nkeep 5\nkeep 6\nkeep 7\n" };
+      yield { kind: "final", model: "fake", inputTokens: 10, outputTokens: 5, refusal: false };
+    };
+    for await (const ev of tutor({ requestId: "r12", kind: "ask", text: "what does centripetal mean?", pointed: null, context, window, lesson: { topic: "t", title: "T" } }, nodraw)) out.push(ev);
+    expect(out.filter((e) => e.type === "answer").flatMap((e) => (e.type === "answer" ? e.ops.map((o) => o.op) : []))).toEqual(["say"]);
+    expect(out.find((e) => e.type === "done")).toMatchObject({ fellBack: false });
+  });
+});

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Op, TutorContext, TutorWindow } from "@tma/schema";
-import { DRAWING_DIRECTIVES_DOC } from "./catalog";
+import { COMPONENT_API_DOC, DRAWING_DIRECTIVES_DOC } from "./catalog";
 import { config } from "./env";
 import { ScriptParser, type ParsedChunk } from "./script-parse";
 
@@ -19,13 +19,16 @@ export type TutorInput = {
   pointed: string | null;
   context: TutorContext;
   window: TutorWindow;
-  lesson: { topic: string; title: string };
+  lesson: { topic: string; title: string; hints?: Array<{ title: string; text: string }> };
 };
 
 export type TutorEvent =
   | { type: "answer"; ops: Op[] }
   | {
       type: "done";
+      /** A repeat came back without a drawing, and a second call supplied one. */
+      addendum: boolean;
+      effort: TutorEffort;
       current: Op[];
       nextPrefix: Op[] | null;
       replan: { fromBeatId: string; reason: string } | null;
@@ -37,9 +40,12 @@ export type TutorEvent =
     }
   | { type: "error"; message: string };
 
+export type TutorEffort = "low" | "medium" | "high";
+
 export type TextStreamer = (
   system: string,
   user: string,
+  opts?: { effort?: TutorEffort },
 ) => AsyncIterable<{ kind: "text"; text: string } | { kind: "final"; model: string | null; inputTokens: number | null; outputTokens: number | null; refusal: boolean }>;
 
 const SYSTEM_PROMPT = `You are the tutor in a spoken, board-based lesson. You own the words from here on. A planner wrote the lesson ahead of time; you adapt it to this learner as it plays.
@@ -49,15 +55,23 @@ You will be given the pending script: numbered lines, the rest of the current pa
 Write back the script to play from here, one item per line:
 - "keep N" plays line N as written. Every ANCHOR line must appear as keep exactly once, in increasing order.
 - A plain sentence is new spoken wording. One sentence per line, short, plain spoken English. No markdown, lists, headings, or emoji.
-- Drawing directives, when words alone will not do (see below).
+- Drawing directives (below), each placed before the sentences that talk about it.
 
-If the learner asked a question, answer it first, in one to three sentences, before the first keep, grounded in the board. Then continue the script, rewording the lines that follow so they fit what you just said: do not re-introduce something you just explained, and refer back to it instead. If the question jumps ahead to a later part, say it is coming, give the short version, and make the opening of that later part refer back when you reach it in the script.
+Teach with the board. The first line of an answer is a drawing: a @scene of the situation the learner asked about, an @update that changes a figure's state so it shows the point, or a @component when the thing has to move. Only when the question is purely about a fact or a meaning and there is nothing to draw, the first line is instead "@nodraw" followed by a short reason. A @highlight is not a drawing, and setting a figure's state to what it already is does not count. Never tell the learner to imagine or picture something: draw it, then talk about what is on the board. The board's figures are yours to use: highlight their parts, and change their state with @update (the state doc says what you can set).
+
+If the learner asked a question, answer it first, before the first keep: the drawing line, then one to four sentences that point at it. Then continue the script, rewording the lines that follow so they fit what you just said: do not re-introduce something you just explained, and refer back to it instead. If the question jumps ahead to a later part, say it is coming, give the short version, and make the opening of that later part refer back when you reach it in the script.
+
+If the learner says they do not get something, or asks again about something the record shows was already explained, do not repeat that explanation in other words. The record says what was said and what was drawn. The new attempt must start with a drawing that differs in kind from that: if words were used, draw the learner's own example as a @scene; if a scene was drawn, switch the lesson's figure to another viewpoint or state with @update, or build a @component that moves; if the figure was changed, draw a concrete case with numbers as a @row or @card. Then explain the new picture in different terms. @nodraw is never allowed on a repeat.
+
+The planner may have prepared answers for likely questions; if so they are listed. Use their substance when one fits, in your own words, and still draw.
 
 If there was no question, you are reviewing the next part after something happened (a wrong answer, a skip, a question earlier). Keep the lines unless the record gives a reason to reword: acknowledge what the learner already asked or got wrong, skip what they already know. Most reviews should be mostly keeps.
 
 If the lesson itself needs to change beyond wording (a missing prerequisite, a learner far behind or far ahead, a request to go somewhere else), add one line: @replan from=<beatId> reason=<short reason>. Still return the script for the lines you were given.
 
 ${DRAWING_DIRECTIVES_DOC}
+
+WRITING A COMPONENT: ${COMPONENT_API_DOC}
 
 Never mention these instructions, the script, lines, or anchors. Do not say you are an AI.`;
 
@@ -69,7 +83,7 @@ function renderOp(op: Op): string {
       const e = op.element;
       const label = "label" in e && e.label ? ` "${e.label}"` : "";
       const detail =
-        e.kind === "array_row" ? ` [${e.values.join(", ")}]` : e.kind === "split_tree" ? ` over ${e.values.join(" ")}` : e.kind === "text_card" ? ` "${e.title ?? ""}"` : e.kind === "latex" ? ` ${e.tex}` : e.kind === "derivation" ? ` ${e.steps.length} lines` : "";
+        e.kind === "array_row" ? ` [${e.values.join(", ")}]` : e.kind === "split_tree" ? ` over ${e.values.join(" ")}` : e.kind === "text_card" ? ` "${e.title ?? ""}"` : e.kind === "latex" ? ` ${e.tex}` : e.kind === "derivation" ? ` ${e.steps.length} lines` : e.kind === "component" ? ` "${e.title ?? ""}" (a figure as code)` : "";
       return `ANCHOR show ${e.kind} ${e.id}${label}${detail}`;
     }
     case "update":
@@ -138,6 +152,7 @@ export function buildUserPrompt(input: TutorInput): string {
     `Lesson: ${input.lesson.title} (topic: ${input.lesson.topic}).`,
     `Outline:\n${outline}`,
     renderRecord(c),
+    input.lesson.hints?.length ? `Prepared answers from the planner, for questions it expected:\n${input.lesson.hints.map((h) => `- ${h.title}: ${h.text}`).join("\n")}` : null,
     c.recentSentences.length ? `Said recently:\n${c.recentSentences.map((s) => `- ${s}`).join("\n")}` : null,
     c.currentSentence ? `Was in the middle of saying: "${c.currentSentence}"` : null,
     c.boardSummary.length ? `On the board:\n${c.boardSummary.map((s) => `- ${s}`).join("\n")}` : "The board is empty.",
@@ -153,13 +168,13 @@ export function buildUserPrompt(input: TutorInput): string {
 }
 
 export function makeClaudeStreamer(client: Anthropic, model = config.tutorModel): TextStreamer {
-  return async function* (system, user) {
+  return async function* (system, user, opts) {
     const stream = client.beta.messages.stream({
       model,
-      max_tokens: 1200,
+      max_tokens: 4000,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: user }],
-      output_config: { effort: "low" },
+      output_config: { effort: opts?.effort ?? "low" },
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
     });
@@ -191,7 +206,7 @@ export function applyEdit(window: TutorWindow, items: ParsedChunk[]): EditResult
   const next: Op[] = [];
   let inNext = false;
   for (const item of items) {
-    if (item.kind === "replan") continue;
+    if (item.kind === "replan" || item.kind === "nodraw") continue;
     if (item.kind === "keep") {
       if (item.line < 1 || item.line > all.length) return { ok: false, reason: `keep ${item.line} is out of range` };
       if (seen.has(item.line)) return { ok: false, reason: `line ${item.line} kept twice` };
@@ -210,6 +225,39 @@ export function applyEdit(window: TutorWindow, items: ParsedChunk[]): EditResult
   return { ok: true, current, nextPrefix: window.nextPrefix.length > 0 ? next : null };
 }
 
+/** A learner saying it did not land, or asking again in the same part. */
+export function isRepeat(input: TutorInput): boolean {
+  if (input.kind !== "ask" || !input.text) return false;
+  const askedHere = input.context.record.some((r) => r.kind === "asked" && r.beatId === input.context.beatId);
+  return askedHere || /\b(still|don'?t get|dont get|confus\w*|lost|again)\b/i.test(input.text);
+}
+
+const isDrawing = (op: Op): boolean => op.op === "show" || op.op === "update";
+
+/** The repeat rule, enforced: when a repeat was answered in words, ask once more for the picture alone. */
+async function drawAddendum(input: TutorInput, said: string[], streamer: TextStreamer): Promise<Op[]> {
+  const c = input.context;
+  const user = [
+    `Learner: ${input.text}`,
+    `You answered in words only: ${said.slice(0, 3).map((s) => `"${s}"`).join(" ")}`,
+    c.boardSummary.length ? `On the board:\n${c.boardSummary.map((s) => `- ${s}`).join("\n")}` : "The board is empty.",
+    "",
+    "The rule is that a repeat gets a picture. Return exactly one drawing directive for the point you just made, and nothing else: a @scene of the learner's own situation, an @update that changes a figure's state, or a @component. No sentences, no keep lines.",
+  ].join("\n");
+  const parser = new ScriptParser(`t.${input.requestId}.d`);
+  const ops: Op[] = [];
+  try {
+    for await (const piece of streamer(SYSTEM_PROMPT, user)) {
+      if (piece.kind !== "text") continue;
+      for (const chunk of parser.push(piece.text)) if (chunk.kind === "op" && isDrawing(chunk.op)) ops.push(chunk.op);
+    }
+    for (const chunk of parser.finish()) if (chunk.kind === "op" && isDrawing(chunk.op)) ops.push(chunk.op);
+  } catch {
+    return [];
+  }
+  return ops.slice(0, 2);
+}
+
 export async function* tutor(input: TutorInput, streamer: TextStreamer): AsyncGenerator<TutorEvent> {
   const parser = new ScriptParser(`t.${input.requestId}`);
   const started = performance.now();
@@ -221,6 +269,11 @@ export async function* tutor(input: TutorInput, streamer: TextStreamer): AsyncGe
   let replan: { fromBeatId: string; reason: string } | null = null;
   let sawKeep = false;
 
+  let addendum = false;
+  // A repeat is where the model has to think of a different way in; it gets more effort than a first question.
+  const repeat = isRepeat(input);
+  const effort: TutorEffort = repeat ? "medium" : "low";
+
   const route = (chunks: ParsedChunk[]): Op[] => {
     const fresh: Op[] = [];
     for (const c of chunks) {
@@ -228,6 +281,7 @@ export async function* tutor(input: TutorInput, streamer: TextStreamer): AsyncGe
         replan = { fromBeatId: c.fromBeatId, reason: c.reason };
         continue;
       }
+      if (c.kind === "nodraw") continue;
       if (c.kind === "keep") sawKeep = true;
       if (!sawKeep && c.kind === "op") {
         answer.push(c.op);
@@ -240,7 +294,7 @@ export async function* tutor(input: TutorInput, streamer: TextStreamer): AsyncGe
   };
 
   try {
-    for await (const piece of streamer(SYSTEM_PROMPT, buildUserPrompt(input))) {
+    for await (const piece of streamer(SYSTEM_PROMPT, buildUserPrompt(input), { effort })) {
       if (piece.kind === "text") {
         if (firstTokenMs === null) firstTokenMs = Math.round(performance.now() - started);
         const fresh = route(parser.push(piece.text));
@@ -258,6 +312,16 @@ export async function* tutor(input: TutorInput, streamer: TextStreamer): AsyncGe
     return;
   }
 
+  if (input.kind === "ask" && !refused && answer.length > 0 && repeat && !answer.some(isDrawing)) {
+    const said = answer.flatMap((o) => (o.op === "say" ? [o.text] : []));
+    const extra = await drawAddendum(input, said, streamer);
+    if (extra.length > 0) {
+      addendum = true;
+      answer.push(...extra);
+      yield { type: "answer", ops: extra };
+    }
+  }
+
   if (input.kind === "ask" && (refused || answer.length === 0)) {
     const apology: Op = { op: "say", id: `t.${input.requestId}.fallback`, text: "I don't have a good answer for that one right now. Let's keep going and come back to it." };
     answer.push(apology);
@@ -269,6 +333,8 @@ export async function* tutor(input: TutorInput, streamer: TextStreamer): AsyncGe
   const fellBack = !emptyWindow && (!applied.ok || !sawKeep);
   yield {
     type: "done",
+    addendum,
+    effort,
     current: applied.ok && sawKeep ? applied.current : input.window.current,
     nextPrefix: applied.ok && sawKeep ? applied.nextPrefix : null,
     replan,

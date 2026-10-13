@@ -138,3 +138,66 @@ describe("parseLooseJson", () => {
   });
 });
 
+
+describe("component blocks", () => {
+  const head = { id: "P", title: "A pendulum", width: 600, height: 360, state: { length: 1 }, stateDoc: "length: 0.5 to 2", parts: ["bob"] };
+  const code = '<svg><circle id="bob"/></svg>\n<script>tma.onState(function (s) {});</script>';
+
+  it("parses a block into a component element", async () => {
+    const { parseComponentBlock } = await import("./planner");
+    const r = parseComponentBlock(`${JSON.stringify(head)}\n${code}`);
+    expect(r).toEqual({ element: { kind: "component", ...head, code } });
+    expect(parseComponentBlock("not json\n<svg/>")).toHaveProperty("error");
+    expect(parseComponentBlock(JSON.stringify(head))).toHaveProperty("error");
+  });
+
+  it("attaches code to a beat that shows the component by reference, inside reactions too", async () => {
+    const { attachComponents } = await import("./planner");
+    const components = new Map([["P", { kind: "component" as const, ...head, code }]]);
+    const raw = {
+      id: "b2",
+      title: "Fig",
+      ops: [
+        { op: "show", id: "b2.e1", element: { kind: "component", id: "P", state: { length: 2 } } },
+        { op: "show", id: "b2.e2", element: { kind: "component", id: "GHOST" } },
+        { op: "check", id: "b2.k1", kind: "choice", prompt: "?", options: ["a", "b"], expected: ["a"], onCorrect: [{ op: "show", id: "b2.e3", element: { kind: "component", id: "P" } }] },
+      ],
+    };
+    const { raw: fixed, dropped } = attachComponents(raw, components);
+    expect(dropped).toEqual(["GHOST"]);
+    const ops = (fixed as { ops: Array<Record<string, unknown>> }).ops;
+    expect(ops).toHaveLength(2);
+    expect(ops[0]).toMatchObject({ element: { code, state: { length: 2 }, parts: ["bob"] } });
+    const check = ops[1] as { onCorrect: Array<{ element: { code: string } }> };
+    expect(check.onCorrect[0]!.element.code).toBe(code);
+    const r = normalizeBeat(fixed, 1, new Set(), "b2");
+    expect(r.beat?.ops.map((o) => o.op)).toEqual(["show", "check"]);
+  });
+
+  it("extractBlocks keeps component code verbatim", () => {
+    const text = `===COMPONENT===\n${JSON.stringify(head)}\n${code}\n===END===\n`;
+    const { blocks } = extractBlocks(text);
+    expect(blocks).toEqual([{ type: "COMPONENT", body: `${JSON.stringify(head)}\n${code}` }]);
+  });
+});
+
+describe("fast tier concurrency", () => {
+  it("starts writing beat 2 before beat 1 has finished streaming, and still delivers them in order", async () => {
+    const started: string[] = [];
+    const streamer: PlannerStreamer = async function* (_system, user, effort) {
+      const which = /HEADER block only/.test(user) ? "header" : /for b1 only/.test(user) ? "b1" : /for b2 only/.test(user) ? "b2" : "rest";
+      started.push(which);
+      const text = which === "header" ? block("HEADER", header) : which === "b1" ? block("BEAT", beat1) : which === "b2" ? block("BEAT", beat2) : "";
+      for (const piece of text.match(/.{1,40}/gs) ?? []) {
+        await new Promise((r) => setTimeout(r, which === "b1" ? 2 : 0));
+        yield { kind: "text", text: piece };
+      }
+      yield { kind: "final", model: "fake", inputTokens: 1, outputTokens: 1, refusal: false };
+      void effort;
+    };
+    const events = [];
+    for await (const ev of planLesson("binary search", "plan-2", streamer)) events.push(ev);
+    expect(started.slice(0, 3)).toEqual(["header", "b2", "b1"]);
+    expect(events.filter((e) => e.type === "beat").map((e) => (e.type === "beat" ? e.index : -1))).toEqual([0, 1]);
+  });
+});

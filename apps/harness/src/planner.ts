@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { mergeSortLesson } from "@tma/content";
-import { BeatSchema, type Beat, type LessonHeader, type Op, type OutlineEntry, type RecordEntry } from "@tma/schema";
+import { BeatSchema, type Beat, type LessonHeader, type Op, type OutlineEntry, type RecordEntry, ComponentSchema, type Component } from "@tma/schema";
 import { jsonrepair } from "jsonrepair";
 import { z } from "zod";
 import { PRIMITIVES_DOC } from "./catalog";
@@ -30,18 +30,54 @@ export type PlannerEvent =
 const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 parts called beats. Rules:
 - One idea per beat. Every beat ends with exactly one check, and the check is the last op.
 - One sentence per say op, short and plain, written to be spoken aloud. No markdown. Spell out symbols the way a person would say them.
-- Show, don't just tell: every beat has something on the board that the words refer to. Highlight what you are talking about. When a value moves, use a move op so it travels. Use the derivation element for step-by-step math, the scene element for physical pictures, the split_tree for halving, rows for lists.
-- Beat 1 must use only rows, cards, formulas, derivations, or scenes that render instantly; keep it simple.
+- Teach with the board, not about it. Every say op refers to something the learner can see. Anything spatial, moving, quantitative, or structural is drawn, not described: never ask the learner to imagine something you could show. Highlight what you are talking about. When a value moves, use a move op so it travels. Use the derivation element for step-by-step math, the split_tree for halving, rows for lists, a scene for a still diagram, and a component for anything that moves, changes viewpoint, or has parts that interact.
+- When the topic is physical, dynamic, or has a viewpoint, write one component for the lesson (a simulation or mechanism with state), introduce it in beat 2, and drive it with update ops in later beats rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
+- Introduce every symbol on the board before it appears in a formula: say what it is and show it, or do not use it. Prefer words to symbols when a symbol is not needed.
+- A check asks the learner to predict before the reveal (what happens if the string snaps?) or to judge a case with the idea, never to repeat the definition just spoken. The reaction shows the answer on the board, with an update or a highlight, before the sentence that explains it.
 - Pin one idea per beat with a short bold title and one sentence of body. Pin formulas as kind "equation" with "tex".
-- Checks have a known answer: choice with 3 options and an "expected" list of accepted answers (include the exact option text), or click_cell with targets and an expected target. The last beat's check may be an ungraded "want to go deeper?" prompt. Reactions: onCorrect one sentence; onIncorrect a highlight, one or two sentences that teach, then clear_highlights.
+- Checks have a known answer: choice with 3 options and an "expected" list of accepted answers (include the exact option text), or click_cell with targets and an expected target. The last beat's check may be an ungraded "want to go deeper?" prompt. Reactions: onCorrect one sentence; onIncorrect a highlight or update, one or two sentences that teach, then clear_highlights.
 - Each beat has a "summary": one sentence of what it teaches, so the tutor can place questions in the lesson.
-- Ids: beats b1..bN; ops "<beatId>.<letter><n>" (s for say, e show, u update, m move, h highlight, c clear, p pin, k check); elements short like A, B, OUT, T, D, S.
+- Ids: beats b1..bN; ops "<beatId>.<letter><n>" (s for say, e show, u update, m move, h highlight, c clear, p pin, k check); elements short like A, B, OUT, T, D, S, P.
 - Elements referenced by update, move, or highlight must have been shown earlier in the lesson.
 - A short calibration question with 3 options opens the lesson; beat 1 must work regardless of the answer.`;
 
-const FORMAT = `OUTPUT FORMAT. Write blocks, nothing else. Each block is a line "===HEADER===" or "===BEAT===", then one JSON object, then a line "===END===". The JSON must be strictly valid: double-quoted keys and strings, a comma between every pair of items, no trailing commas, no comments, no text outside the braces. Inside strings, escape backslashes (write \\\\log for \\log) and double quotes.
+const FORMAT = `OUTPUT FORMAT. Write blocks, nothing else. Each block is a line "===HEADER===", "===BEAT===", or "===COMPONENT===", then its content, then a line "===END===". HEADER and BEAT content is one JSON object, strictly valid: double-quoted keys and strings, a comma between every pair of items, no trailing commas, no comments, no text outside the braces. Inside strings, escape backslashes (write \\\\log for \\log) and double quotes.
 The header JSON: {"topic":"...","title":"...","calibration":{"prompt":"...","options":["...","...","..."]},"outline":[{"id":"b1","title":"...","summary":"..."}, ...]}
-Each beat JSON: {"id":"b1","title":"...","summary":"...","ops":[...]}`;
+Each beat JSON: {"id":"b1","title":"...","summary":"...","ops":[...]}
+A COMPONENT block carries a figure's code unescaped. Its first line is a JSON object with every field but "code" ({"id":"P","title":"A pendulum","width":600,"height":360,"state":{"length":1},"stateDoc":"length: 0.5 to 2","parts":["bob","string","gravity"]}), and the lines after it up to ===END=== are the code. Write the block before the first beat that shows the figure, and show it with {"op":"show","id":"b2.e1","element":{"kind":"component","id":"P"}}; the code is attached from the block.`;
+
+
+const EXAMPLE_COMPONENT = `===COMPONENT===
+{"id":"P","title":"A pendulum","width":600,"height":360,"state":{"length":1,"showForces":true},"stateDoc":"length: 0.5 to 2, the string length relative to the start; showForces: true | false, whether the gravity arrow is drawn","parts":["bob","string","gravity"]}
+<svg viewBox="0 0 600 360" width="600" height="360">
+  <defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--correct)"/></marker></defs>
+  <line x1="200" y1="40" x2="400" y2="40" stroke="var(--ink-mute)" stroke-width="3"/>
+  <line id="string" x1="300" y1="40" x2="300" y2="240" stroke="var(--ink)" stroke-width="2"/>
+  <circle id="bob" cx="300" cy="240" r="16" fill="var(--ink)"/>
+  <line id="gravity" x1="300" y1="240" x2="300" y2="300" stroke="var(--correct)" stroke-width="3" marker-end="url(#head)"/>
+  <text id="period" x="20" y="340" font-size="14" fill="var(--ink-soft)"></text>
+</svg>
+<script>
+  var angle = 0.6, velocity = 0, L = 200, g = 9.8;
+  var str = document.getElementById("string"), bob = document.getElementById("bob"), grav = document.getElementById("gravity");
+  tma.onState(function (s) {
+    L = 200 * (s.length || 1);
+    grav.style.display = s.showForces === false ? "none" : "";
+  });
+  tma.onFrame(function (t, dt) {
+    velocity += -(g / (L / 100)) * Math.sin(angle) * dt;
+    angle += velocity * dt;
+    var x = 300 + L * Math.sin(angle), y = 40 + L * Math.cos(angle);
+    str.setAttribute("x2", x); str.setAttribute("y2", y);
+    bob.setAttribute("cx", x); bob.setAttribute("cy", y);
+    grav.setAttribute("x1", x); grav.setAttribute("y1", y); grav.setAttribute("x2", x); grav.setAttribute("y2", y + 60);
+    document.getElementById("period").textContent = "period about " + (2 * Math.PI * Math.sqrt(L / 100 / g)).toFixed(1) + " s";
+  });
+</script>
+===END===
+===BEAT===
+{"id":"b2","title":"What sets the period","summary":"The period depends on the string length, not the mass.","ops":[{"op":"show","id":"b2.e1","element":{"kind":"component","id":"P"}},{"op":"say","id":"b2.s1","text":"Here is a pendulum swinging, with gravity drawn as the green arrow."},{"op":"highlight","id":"b2.h1","targets":[{"id":"P","index":2}]},{"op":"say","id":"b2.s2","text":"Gravity is the only thing pulling it back toward the middle."},{"op":"clear_highlights","id":"b2.c1"},{"op":"say","id":"b2.s3","text":"Now watch what a longer string does to the swing."},{"op":"update","id":"b2.u1","target":"P","patch":{"state":{"length":2}}},{"op":"say","id":"b2.s4","text":"Longer string, slower swing, and the period in the corner goes up."},{"op":"pin","id":"b2.p1","pin":{"pinId":"period","kind":"takeaway","title":"Length sets the period","text":"A longer string swings more slowly; the mass does not matter."}},{"op":"check","id":"b2.k1","kind":"choice","prompt":"Halve the string. The period…","options":["Gets shorter","Stays the same","Gets longer"],"expected":["Gets shorter","shorter"],"onCorrect":[{"op":"update","id":"b2.k1.u1","target":"P","patch":{"state":{"length":0.5}}},{"op":"say","id":"b2.k1.y1","text":"Shorter string, quicker swing, as you can see."}],"onIncorrect":[{"op":"update","id":"b2.k1.u2","target":"P","patch":{"state":{"length":0.5}}},{"op":"say","id":"b2.k1.n1","text":"Watch it: with half the string, the swing speeds up."}]}]}
+===END===`;
 
 function exampleBlocks(): string {
   const l = mergeSortLesson;
@@ -66,7 +102,7 @@ function exampleBlocks(): string {
   ].join("\n");
 }
 
-export const PLANNER_SYSTEM = `${RULES}\n\n${PRIMITIVES_DOC}\n\n${FORMAT}\n\nEXAMPLE of the format, from a lesson on merge sort (header and the first two beats):\n${exampleBlocks()}`;
+export const PLANNER_SYSTEM = `${RULES}\n\n${PRIMITIVES_DOC}\n\n${FORMAT}\n\nEXAMPLE of the format, from a lesson on merge sort (header and the first two beats):\n${exampleBlocks()}\n\nEXAMPLE of a COMPONENT block and a beat that uses it, from a different lesson, on pendulums:\n${EXAMPLE_COMPONENT}`;
 
 const HeaderBlockSchema = z.object({
   topic: z.string().min(1),
@@ -76,16 +112,17 @@ const HeaderBlockSchema = z.object({
 });
 const OutlineBlockSchema = z.object({ outline: HeaderBlockSchema.shape.outline });
 
-const BLOCK_RE = /===(HEADER|BEAT|OUTLINE)===\s*([\s\S]*?)\s*===END===/g;
+export type BlockType = "HEADER" | "BEAT" | "OUTLINE" | "COMPONENT";
+const BLOCK_RE = /===(HEADER|BEAT|OUTLINE|COMPONENT)===\s*([\s\S]*?)\s*===END===/g;
 
 /** Pull completed blocks off the front of a text buffer. */
-export function extractBlocks(buffer: string): { blocks: Array<{ type: "HEADER" | "BEAT" | "OUTLINE"; body: string }>; rest: string } {
-  const blocks: Array<{ type: "HEADER" | "BEAT" | "OUTLINE"; body: string }> = [];
+export function extractBlocks(buffer: string): { blocks: Array<{ type: BlockType; body: string }>; rest: string } {
+  const blocks: Array<{ type: BlockType; body: string }> = [];
   let lastEnd = 0;
   BLOCK_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = BLOCK_RE.exec(buffer)) !== null) {
-    blocks.push({ type: m[1] as "HEADER" | "BEAT" | "OUTLINE", body: m[2]! });
+    blocks.push({ type: m[1] as BlockType, body: m[2]! });
     lastEnd = m.index + m[0].length;
   }
   return { blocks, rest: buffer.slice(lastEnd).replace(/^\s+/, "") };
@@ -103,6 +140,72 @@ export function parseLooseJson(body: string): { ok: true; value: unknown; repair
       return { ok: false, error: (first as Error).message };
     }
   }
+}
+
+const ComponentHeadSchema = ComponentSchema.omit({ kind: true, code: true });
+
+/** A COMPONENT block: one line of JSON (every field but the code), then the code. */
+export function parseComponentBlock(body: string): { element: Component } | { error: string } {
+  const text = body.trim();
+  const nl = text.indexOf("\n");
+  const headLine = (nl === -1 ? text : text.slice(0, nl)).trim();
+  const code = nl === -1 ? "" : text.slice(nl + 1).trim();
+  const loose = parseLooseJson(headLine);
+  if (!loose.ok) return { error: `component head: ${loose.error}` };
+  const head = ComponentHeadSchema.safeParse(loose.value);
+  if (!head.success) return { error: `component head: ${head.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}` };
+  if (!code) return { error: `component ${head.data.id}: no code` };
+  return { element: { kind: "component", ...head.data, code } };
+}
+
+/** Fill in the code of components a beat shows by reference; drop a show whose code never arrived. */
+export function attachComponents(raw: unknown, components: Map<string, Component>): { raw: unknown; dropped: string[] } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { raw, dropped: [] };
+  const dropped: string[] = [];
+  const fix = (ops: unknown): unknown => {
+    if (!Array.isArray(ops)) return ops;
+    const out: unknown[] = [];
+    for (const op of ops) {
+      if (op && typeof op === "object" && !Array.isArray(op)) {
+        const o = op as Record<string, unknown>;
+        if (o["op"] === "show" && o["element"] && typeof o["element"] === "object") {
+          const el = o["element"] as Record<string, unknown>;
+          if (el["kind"] === "component" && typeof el["code"] !== "string") {
+            const known = typeof el["id"] === "string" ? components.get(el["id"]) : undefined;
+            if (!known) {
+              dropped.push(String(el["id"] ?? "?"));
+              continue;
+            }
+            out.push({ ...o, element: { ...known, ...el, code: known.code } });
+            continue;
+          }
+        }
+        if (o["op"] === "check") {
+          out.push({ ...o, onCorrect: fix(o["onCorrect"]), onIncorrect: fix(o["onIncorrect"]) });
+          continue;
+        }
+      }
+      out.push(op);
+    }
+    return out;
+  };
+  const r = raw as Record<string, unknown>;
+  return { raw: { ...r, ops: fix(r["ops"]) }, dropped };
+}
+
+function collectComponents(beats: Beat[]): Map<string, Component> {
+  const out = new Map<string, Component>();
+  const walk = (ops: Op[]) => {
+    for (const op of ops) {
+      if (op.op === "show" && op.element.kind === "component") out.set(op.element.id, op.element);
+      if (op.op === "check") {
+        walk(op.onCorrect ?? []);
+        walk(op.onIncorrect ?? []);
+      }
+    }
+  };
+  for (const b of beats) walk(b.ops);
+  return out;
 }
 
 function collectShown(ops: Op[], into: Set<string>): void {
@@ -203,7 +306,9 @@ function headerFromBlock(block: z.infer<typeof HeaderBlockSchema>, id: string): 
   };
 }
 
-async function* streamBlocks(streamer: PlannerStreamer, system: string, user: string, effort: "low" | "high"): AsyncGenerator<{ type: "HEADER" | "BEAT" | "OUTLINE"; body: string } | { type: "final"; model: string | null; inputTokens: number | null; outputTokens: number | null; refusal: boolean }> {
+type StreamItem = { type: BlockType; body: string } | { type: "final"; model: string | null; inputTokens: number | null; outputTokens: number | null; refusal: boolean };
+
+async function* streamBlocks(streamer: PlannerStreamer, system: string, user: string, effort: "low" | "high"): AsyncGenerator<StreamItem> {
   let buffer = "";
   for await (const piece of streamer(system, user, effort)) {
     if (piece.kind === "text") {
@@ -230,6 +335,7 @@ async function repairBeat(streamer: PlannerStreamer, body: string, errors: strin
 
 export async function* planLesson(topic: string, lessonId: string, streamer: PlannerStreamer): AsyncGenerator<PlannerEvent> {
   const known = new Set<string>();
+  const components = new Map<string, Component>();
   let header: LessonHeader | null = null;
   const fastBeats: Beat[] = [];
   let meta = { model: null as string | null, inputTokens: null as number | null, outputTokens: null as number | null };
@@ -251,17 +357,24 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       if (parsed.repaired) yield { type: "diagnostic", message: `beat ${index + 1}: JSON needed repair`, raw: body.slice(0, 4000) };
       raw = parsed.value;
     }
-    let result = normalizeBeat(raw, index, known, header?.outline[index]?.id);
+    const attached = attachComponents(raw, components);
+    let result = normalizeBeat(attached.raw, index, known, header?.outline[index]?.id);
     if (!result.beat) {
       const fixed = await repairBeat(streamer, body, result.errors);
-      result = fixed ? normalizeBeat(fixed, index, known, header?.outline[index]?.id) : result;
+      result = fixed ? normalizeBeat(attachComponents(fixed, components).raw, index, known, header?.outline[index]?.id) : result;
     }
     if (!result.beat) {
       yield { type: "error", message: `beat ${index + 1} could not be repaired: ${(result as { errors: string[] }).errors.join("; ")}` };
       return;
     }
     collectShown(result.beat.ops, known);
-    yield { type: "beat", index, beat: result.beat, issues: result.issues };
+    yield { type: "beat", index, beat: result.beat, issues: [...attached.dropped.map((id) => `dropped show of component ${id}: no code block`), ...result.issues] };
+  };
+
+  const handleComponent = function* (body: string): Generator<PlannerEvent> {
+    const parsed = parseComponentBlock(body);
+    if ("element" in parsed) components.set(parsed.element.id, parsed.element);
+    else yield { type: "diagnostic", message: parsed.error, raw: body.slice(0, 4000) };
   };
 
   try {
@@ -274,6 +387,10 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
           yield { type: "error", message: "the planner declined this topic" };
           return;
         }
+        continue;
+      }
+      if (block.type === "COMPONENT") {
+        yield* handleComponent(block.body);
         continue;
       }
       if (block.type === "HEADER") {
@@ -298,36 +415,63 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
     const headerBlock = `===HEADER===\n${JSON.stringify({ topic: header.topic, title: header.title, calibration: header.calibration, outline: header.outline })}\n===END===`;
     const total = header.outline.length;
 
-    // Fast tier, one call per beat at low effort: beat 1 while the learner reads the
-    // calibration question, beat 2 while beat 1 plays. Enough runway for the slow tier.
-    for (let index = 0; index < Math.min(FAST_BEATS, total); index++) {
-      const entry = header.outline[index]!;
-      const soFar = fastBeats.map((b) => `===BEAT===\n${JSON.stringify(b)}\n===END===`).join("\n");
-      const ask =
-        index === 0
-          ? `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only. It must use only instantly rendered elements and work regardless of the calibration answer.`
-          : `Topic: ${topic}\n\nHere is the header and the beats you already wrote:\n${headerBlock}\n${soFar}\n\nWrite the BEAT block for ${entry.id} only, following the outline. Elements shown in earlier beats stay on the board unless you clear them.`;
+    // Fast tier at low effort. Beats 1 and 2 are written at the same time, both from the header
+    // alone: beat 1 while the learner reads the calibration question, beat 2 (which carries the
+    // lesson's figure, the slowest thing to write) while beat 1 plays. Beat 2 is processed after
+    // beat 1 so element references resolve in order.
+    const askFor = (index: number): string => {
+      const entry = header!.outline[index]!;
+      if (index === 0) {
+        return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only. It must use only instantly rendered elements and work regardless of the calibration answer.`;
+      }
+      return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only, following the outline. ${header!.outline[0]!.id} is being written separately with instant elements only, so do not reference its elements; start this beat with what it needs on the board. If the lesson calls for a figure written as code, write its COMPONENT block now and show it in this beat.`;
+    };
+    const collect = async (ask: string): Promise<StreamItem[]> => {
+      const out: StreamItem[] = [];
+      try {
+        for await (const item of streamBlocks(streamer, PLANNER_SYSTEM, ask, "low")) out.push(item);
+      } catch {
+        // A failed second beat is written again by the slow tier.
+      }
+      return out;
+    };
+    const handleFast = async function* (item: StreamItem, index: number): AsyncGenerator<PlannerEvent, boolean> {
+      if (item.type === "final") {
+        meta = { model: item.model, inputTokens: (meta.inputTokens ?? 0) + (item.inputTokens ?? 0), outputTokens: (meta.outputTokens ?? 0) + (item.outputTokens ?? 0) };
+        return false;
+      }
+      if (item.type === "COMPONENT") {
+        yield* handleComponent(item.body);
+        return false;
+      }
+      if (item.type !== "BEAT") return false;
       let got = false;
-      for await (const block of streamBlocks(streamer, PLANNER_SYSTEM, ask, "low")) {
-        if (block.type === "final") {
-          meta = { model: block.model, inputTokens: (meta.inputTokens ?? 0) + (block.inputTokens ?? 0), outputTokens: (meta.outputTokens ?? 0) + (block.outputTokens ?? 0) };
-          continue;
+      for await (const ev of handleBeat(item.body, index)) {
+        if (ev.type === "beat") {
+          fastBeats.push(ev.beat);
+          got = true;
         }
-        if (block.type === "BEAT" && !got) {
-          for await (const ev of handleBeat(block.body, index)) {
-            if (ev.type === "beat") {
-              fastBeats.push(ev.beat);
-              got = true;
-            }
-            yield ev;
-          }
-        }
+        yield ev;
       }
-      if (index === 0 && !got) {
-        yield { type: "error", message: "the planner produced no first beat" };
-        return;
+      return got;
+    };
+
+    const second = total > 1 && FAST_BEATS > 1 ? collect(askFor(1)) : null;
+    let gotFirst = false;
+    for await (const item of streamBlocks(streamer, PLANNER_SYSTEM, askFor(0), "low")) {
+      if (gotFirst && item.type === "BEAT") continue;
+      if (yield* handleFast(item, 0)) gotFirst = true;
+    }
+    if (!gotFirst) {
+      yield { type: "error", message: "the planner produced no first beat" };
+      return;
+    }
+    if (second) {
+      let gotSecond = false;
+      for (const item of await second) {
+        if (gotSecond && item.type === "BEAT") continue;
+        if (yield* handleFast(item, 1)) gotSecond = true;
       }
-      if (!got) break;
     }
 
     if (total > fastBeats.length) {
@@ -341,6 +485,10 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       for await (const block of streamBlocks(streamer, PLANNER_SYSTEM, rest, "high")) {
         if (block.type === "final") {
           meta = { model: block.model, inputTokens: (meta.inputTokens ?? 0) + (block.inputTokens ?? 0), outputTokens: (meta.outputTokens ?? 0) + (block.outputTokens ?? 0) };
+          continue;
+        }
+        if (block.type === "COMPONENT") {
+          yield* handleComponent(block.body);
           continue;
         }
         if (block.type !== "BEAT") continue;
@@ -363,9 +511,10 @@ export async function* replanLesson(
   const { topic, header, beats, fromIndex, reason, record } = args;
   const known = new Set<string>();
   for (const b of beats.slice(0, fromIndex)) collectShown(b.ops, known);
+  const components = collectComponents(beats.slice(0, fromIndex));
   const done = header.outline.slice(0, fromIndex).map((b) => `- ${b.id} "${b.title}": ${b.summary ?? ""}`).join("\n");
   const rec = record.map((r) => `- ${JSON.stringify(r)}`).join("\n");
-  const user = `Topic: ${topic}\nLesson so far (already played, do not rewrite):\n${done}\n\nRecord of what happened:\n${rec || "- nothing notable"}\n\nThe tutor asked for a replan from ${header.outline[fromIndex]?.id ?? `beat ${fromIndex + 1}`} because: ${reason}\n\nWrite an OUTLINE block for the remaining beats (ids continuing from ${header.outline[fromIndex]?.id ?? "the next id"}, 2 to 4 beats), then a BEAT block for each, in order. Elements shown in earlier beats are still on the board: ${[...known].join(", ") || "none"}.`;
+  const user = `Topic: ${topic}\nLesson so far (already played, do not rewrite):\n${done}\n\nRecord of what happened:\n${rec || "- nothing notable"}\n\nThe tutor asked for a replan from ${header.outline[fromIndex]?.id ?? `beat ${fromIndex + 1}`} because: ${reason}\n\nWrite an OUTLINE block for the remaining beats (ids continuing from ${header.outline[fromIndex]?.id ?? "the next id"}, 2 to 4 beats), then a BEAT block for each, in order. Elements shown in earlier beats are still on the board: ${[...known].join(", ") || "none"}.${components.size ? ` Components already on the board, which later beats can drive with update ops: ${[...components.values()].map((c) => `${c.id} (${c.title ?? "figure"}; state: ${c.stateDoc ?? JSON.stringify(c.state ?? {})})`).join("; ")}.` : ""}`;
   let outline: OutlineEntry[] | null = null;
   let index = fromIndex;
   try {
@@ -380,15 +529,21 @@ export async function* replanLesson(
         yield { type: "outline", fromIndex, outline };
         continue;
       }
+      if (block.type === "COMPONENT") {
+        const parsed = parseComponentBlock(block.body);
+        if ("element" in parsed) components.set(parsed.element.id, parsed.element);
+        else yield { type: "diagnostic", message: parsed.error, raw: block.body.slice(0, 4000) };
+        continue;
+      }
       if (block.type !== "BEAT") continue;
       const loose = parseLooseJson(block.body);
       if (!loose.ok) continue;
-      const raw = loose.value;
+      const raw = attachComponents(loose.value, components).raw;
       const outlineId = outline?.[index - fromIndex]?.id;
       let result = normalizeBeat(raw, index, known, outlineId);
       if (!result.beat) {
         const fixed = await repairBeat(streamer, block.body, result.errors);
-        result = fixed ? normalizeBeat(fixed, index, known, outlineId) : result;
+        result = fixed ? normalizeBeat(attachComponents(fixed, components).raw, index, known, outlineId) : result;
       }
       if (!result.beat) {
         yield { type: "error", message: `replan beat ${index + 1} could not be repaired` };

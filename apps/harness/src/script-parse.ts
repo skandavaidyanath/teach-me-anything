@@ -1,4 +1,4 @@
-import type { Element, ElementRef, Op } from "@tma/schema";
+import { SceneItemSchema, type Element, type ElementRef, type Op, type SceneItem } from "@tma/schema";
 
 /**
  * Parses what the Tutor writes: a script, one item per line.
@@ -6,15 +6,19 @@ import type { Element, ElementRef, Op } from "@tma/schema";
  *   keep 7                          play line 7 of the pending script as written
  *   plain text                      new spoken sentences (split at sentence ends)
  *   @highlight A[0] B[0]            and the other drawing directives
+ *   @component ID "Title" 600x360   a figure as code, on the lines up to @end
  *   @replan from=b3 reason=...      ask the Planner to rewrite from a beat
  *
  * Sentences stream out as soon as they are complete so TTS can start early.
+ * Inside a component block nothing is spoken: the lines are code until @end.
  */
 
 export type ParsedChunk =
   | { kind: "op"; op: Op }
   | { kind: "keep"; line: number }
-  | { kind: "replan"; fromBeatId: string; reason: string };
+  | { kind: "replan"; fromBeatId: string; reason: string }
+  /** The Tutor declared that this answer has nothing to draw. */
+  | { kind: "nodraw"; reason: string };
 
 // A sentence ends at . ! or ? (plus closing quotes/brackets) followed by whitespace and more text.
 const SENTENCE_END = /([.!?]["')\]]*)\s+(?=\S)/g;
@@ -55,6 +59,29 @@ function splitComplete(text: string): { sentences: string[]; rest: string } {
 
 const isControlLine = (t: string) => t.startsWith("@") || /^keep\b/i.test(t);
 
+type ComponentHeader = { id: string; title?: string; width: number; height: number; parts?: string[]; state?: Record<string, unknown> };
+
+/** `@component ID "Title" 600x360 parts=a,b state={...}`; size, title, parts, and state are optional. */
+export function parseComponentHeader(line: string): ComponentHeader | null {
+  const m = /^@component\s+([A-Za-z][\w-]*)\s*(?:"([^"]*)")?\s*(?:(\d+)\s*x\s*(\d+))?\s*(.*)$/i.exec(line.trim());
+  if (!m) return null;
+  const opts = m[5] ?? "";
+  const header: ComponentHeader = { id: m[1]!, width: m[3] ? Number(m[3]) : 600, height: m[4] ? Number(m[4]) : 360 };
+  if (m[2]) header.title = m[2];
+  const parts = /parts=([\w,-]+)/.exec(opts)?.[1];
+  if (parts) header.parts = parts.split(",").map((p) => p.trim()).filter(Boolean);
+  const state = /state=(\{.*\})/.exec(opts)?.[1];
+  if (state) {
+    try {
+      const parsed: unknown = JSON.parse(state);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) header.state = parsed as Record<string, unknown>;
+    } catch {
+      // A bad state literal just means the figure starts empty.
+    }
+  }
+  return header;
+}
+
 export class ScriptParser {
   private textBuffer = "";
   private lineBuffer = "";
@@ -62,6 +89,8 @@ export class ScriptParser {
   private highlightCount = 0;
   private pinCount = 0;
   private showCount = 0;
+  /** Open component block: code lines collected until @end. A null header means the block is discarded. */
+  private block: { header: ComponentHeader | null; lines: string[] } | null = null;
 
   constructor(private readonly idPrefix: string) {}
 
@@ -76,7 +105,7 @@ export class ScriptParser {
     }
     // A partial line that is not a control line may already hold finished sentences.
     // Buffers are only rewritten when something was emitted, so no trailing space is lost mid-token.
-    if (this.lineBuffer.length > 0 && !isControlLine(this.lineBuffer.trimStart())) {
+    if (!this.block && this.lineBuffer.length > 0 && !isControlLine(this.lineBuffer.trimStart())) {
       const combined = this.textBuffer ? `${this.textBuffer} ${this.lineBuffer}` : this.lineBuffer;
       const { sentences, rest } = splitComplete(combined);
       if (sentences.length > 0) {
@@ -90,6 +119,19 @@ export class ScriptParser {
 
   private completeLine(line: string): ParsedChunk[] {
     const trimmed = line.trim();
+    if (this.block) {
+      if (/^@end\s*$/i.test(trimmed)) {
+        const op = this.closeBlock();
+        return op ? [op] : [];
+      }
+      this.block.lines.push(line);
+      return [];
+    }
+    if (/^@component\b/i.test(trimmed)) {
+      const flushed = this.flushText();
+      this.block = { header: parseComponentHeader(trimmed), lines: [] };
+      return flushed;
+    }
     if (isControlLine(trimmed)) {
       const flushed = this.flushText();
       const control = this.parseControl(trimmed);
@@ -108,6 +150,27 @@ export class ScriptParser {
     const tail = rest.trim();
     if (tail) out.push(this.say(tail));
     return out;
+  }
+
+  private closeBlock(): ParsedChunk | null {
+    const block = this.block;
+    this.block = null;
+    if (!block || !block.header) return null;
+    const code = block.lines.join("\n").trim();
+    if (!code) return null;
+    this.showCount++;
+    const h = block.header;
+    const element: Element = {
+      kind: "component",
+      id: h.id,
+      width: h.width,
+      height: h.height,
+      code,
+      ...(h.title ? { title: h.title } : {}),
+      ...(h.parts ? { parts: h.parts } : {}),
+      ...(h.state ? { state: h.state } : {}),
+    };
+    return { kind: "op", op: { op: "show", id: `${this.idPrefix}.e${this.showCount}`, element } };
   }
 
   private say(text: string): ParsedChunk {
@@ -157,6 +220,25 @@ export class ScriptParser {
       this.showCount++;
       return { kind: "op", op: { op: "show", id: `${this.idPrefix}.e${this.showCount}`, element } };
     }
+    if (name === "update") {
+      const um = /^([A-Za-z][\w-]*)\s*:?\s*(\{.*\})\s*$/.exec(rest);
+      if (!um) return null;
+      let patch: unknown;
+      try {
+        patch = JSON.parse(um[2]!);
+      } catch {
+        return null;
+      }
+      if (!patch || typeof patch !== "object" || Array.isArray(patch)) return null;
+      this.showCount++;
+      return { kind: "op", op: { op: "update", id: `${this.idPrefix}.u${this.showCount}`, target: um[1]!, patch: { state: patch } } };
+    }
+    if (name === "scene") {
+      const element = this.parseScene(rest);
+      if (!element) return null;
+      this.showCount++;
+      return { kind: "op", op: { op: "show", id: `${this.idPrefix}.e${this.showCount}`, element } };
+    }
     if (name === "reveal") {
       const rm = /^([A-Za-z][\w-]*)\s+(?:levels=|lines=)?(\d+)$/.exec(rest);
       if (!rm) return null;
@@ -174,6 +256,7 @@ export class ScriptParser {
       if (mm[3] !== undefined) to.index = Number(mm[3]);
       return { kind: "op", op: { op: "move", id: `${this.idPrefix}.m${this.showCount}`, from, to } };
     }
+    if (name === "nodraw") return { kind: "nodraw", reason: rest };
     if (name === "replan") {
       const fm = /from=([A-Za-z][\w-]*)/.exec(rest);
       const rm = /reason=(.*)$/.exec(rest);
@@ -181,6 +264,27 @@ export class ScriptParser {
       return { kind: "replan", fromBeatId: fm[1]!, reason: (rm?.[1] ?? "").trim().replace(/^"|"$/g, "") };
     }
     return null;
+  }
+
+  private parseScene(rest: string): Element | null {
+    const m = /^([A-Za-z][\w-]*)\s*(?:"([^"]*)")?\s*(?:(\d+)\s*x\s*(\d+))?\s*:\s*(\[.*\])\s*$/.exec(rest);
+    if (!m) return null;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(m[5]!);
+    } catch {
+      return null;
+    }
+    if (!Array.isArray(raw)) return null;
+    const items: SceneItem[] = [];
+    for (const item of raw) {
+      const parsed = SceneItemSchema.safeParse(item);
+      if (parsed.success) items.push(parsed.data);
+    }
+    if (items.length === 0) return null;
+    const el: Element = { kind: "scene", id: m[1]!, width: m[3] ? Number(m[3]) : 420, height: m[4] ? Number(m[4]) : 300, items };
+    if (m[2]) el.label = m[2];
+    return el;
   }
 
   private parseShow(name: string, rest: string): Element | null {
@@ -220,6 +324,14 @@ export class ScriptParser {
   }
 
   finish(): ParsedChunk[] {
+    if (this.block) {
+      // The model forgot @end; whatever it wrote is the figure.
+      const tail = this.lineBuffer;
+      this.lineBuffer = "";
+      if (tail.trim() && !/^@end\s*$/i.test(tail.trim())) this.block.lines.push(tail);
+      const op = this.closeBlock();
+      return op ? [op] : [];
+    }
     const tail = this.lineBuffer.trim();
     this.lineBuffer = "";
     if (isControlLine(tail)) {

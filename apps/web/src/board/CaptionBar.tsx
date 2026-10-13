@@ -24,7 +24,7 @@ export function CaptionBar({ state, playhead }: { state: PlayheadState; playhead
 
   let status: string | null = null;
   if (state.mode === "paused") status = state.typingArmed ? "Paused while you type" : "Paused";
-  else if (state.waiting === "answer") status = "Thinking…";
+  else if (state.waiting === "answer" || state.waiting === "review") status = "Thinking…";
   else if (state.waiting === "beat") status = "Writing the next part…";
   else if (state.answering) status = state.answering.title;
   else if (state.typingArmed) status = "Pausing at the end of this sentence";

@@ -18,7 +18,7 @@ import {
   type TutorWindow,
 } from "@tma/schema";
 import { applyOp, emptyBoard, replay, type BoardState } from "./board-reducer";
-import { dispatchInput } from "./dispatcher";
+import { matchBranch, matchNav } from "./dispatcher";
 import { createSpeaker, speechAvailable, type SpeakHandle, type Speaker } from "./speaker";
 
 /**
@@ -75,8 +75,8 @@ export type PlayheadState = {
   answering: { title: string } | null;
   /** Element ids on the board before the answer began; anything else is the Tutor's drawing. */
   layerBaseIds: string[] | null;
-  /** The loop is idle because content has not arrived yet. */
-  waiting: "beat" | "answer" | null;
+  /** The loop is idle: the next beat has not arrived, an answer is on its way, or a review of the next beat is still out. */
+  waiting: "beat" | "answer" | "review" | null;
   pointed: ElementRef | null;
   typingArmed: boolean;
   calibrationAnswer: string | null;
@@ -94,6 +94,8 @@ const FILLERS = ["Good question.", "Let me think about that for a second.", "Rig
 const PREFETCH_AHEAD = 3;
 /** How much of the next beat the Tutor may edit. */
 const NEXT_PREFIX_OPS = 5;
+/** How long to hold the next beat for a review of it that is still out. */
+const REVIEW_WAIT_MS = 2500;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -148,6 +150,12 @@ export class Playhead {
   private pendingRequest: { requestId: string; kind: "ask" | "review"; nextBeatIndex: number | null; nextPrefixCount: number; beatIndexAtSend: number } | null = null;
   private answerDone = false;
   private skipAfterAnswer = false;
+  /** Waiting at a beat boundary for the Tutor's review of that beat. */
+  private reviewHold: { requestId: string; timer: ReturnType<typeof setTimeout> } | null = null;
+  /** Component states when the answer began; the Tutor's changes to them are undone when it ends. */
+  private answerBaseStates = new Map<string, Record<string, unknown>>();
+  /** Where in history the current answer began, so the record can say what it said and drew. */
+  private answerStartIndex = 0;
   private fillerTimer: ReturnType<typeof setTimeout> | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -315,6 +323,7 @@ export class Playhead {
     this.waitingForBeat = false;
     this.holdFor = null;
     this.pendingRequest = null;
+    this.clearReviewHold();
     this.record = [];
     this.eventCount = 0;
     this.reviewedAt = this.beats.map(() => 0);
@@ -359,6 +368,7 @@ export class Playhead {
           this.endAnswer();
           continue;
         }
+        if (this.awaitReview()) return;
         const next = this.advanceBeat();
         if (next === "finished") {
           this.set({ mode: "finished", caption: null, waiting: null });
@@ -439,6 +449,33 @@ export class Playhead {
         return;
       }
     }
+  }
+
+  /** A review of the next beat is still out: hold briefly rather than play the unreviewed opening. */
+  private awaitReview(): boolean {
+    const req = this.pendingRequest;
+    const nextIndex = this.state.beatIndex + 1;
+    if (!req || req.kind !== "review" || req.nextBeatIndex !== nextIndex || !this.beats[nextIndex]) return false;
+    if (!this.reviewHold) {
+      const requestId = req.requestId;
+      const timer = setTimeout(() => {
+        if (this.reviewHold?.requestId !== requestId) return;
+        this.reviewHold = null;
+        if (this.pendingRequest?.requestId === requestId) this.pendingRequest = null;
+        if (this.state.waiting === "review") this.set({ waiting: null });
+        if (this.state.mode === "playing") void this.run();
+      }, REVIEW_WAIT_MS * this.settleScale);
+      this.reviewHold = { requestId, timer };
+    }
+    if (this.state.waiting !== "review") this.set({ waiting: "review" });
+    return true;
+  }
+
+  private clearReviewHold(): void {
+    if (!this.reviewHold) return;
+    clearTimeout(this.reviewHold.timer);
+    this.reviewHold = null;
+    if (this.state.waiting === "review") this.set({ waiting: null });
   }
 
   private advanceBeat(): "advanced" | "waiting" | "finished" {
@@ -535,25 +572,28 @@ export class Playhead {
       }
     }
     const pointed = this.state.pointed?.id ?? null;
-    const dispatch = dispatchInput(this.header, text, { beatId: this.beatId, pointed });
+    const nav = matchNav(text);
     this.set({ pointed: null, typingArmed: false });
     this.pauseAtBoundary = false;
-    if (dispatch.kind === "nav") {
-      this.emit({ kind: "nav", command: dispatch.command });
-      this.nav(dispatch.command);
+    if (nav) {
+      this.emit({ kind: "nav", command: nav });
+      this.nav(nav);
       return;
     }
     if (this.state.mode === "finished" || this.state.mode === "calibrating" || this.state.mode === "idle") return;
     this.emit({ kind: "interrupt", mode: "hard", beatId: this.beatId, opId: this.inFlight?.op.id ?? null });
-    if (dispatch.kind === "branch") {
-      this.playBranch(dispatch.branch, text);
-      return;
-    }
+    // Everything that is not navigation goes to the Tutor. Only a model can tell "tell me about the car"
+    // from "I don't get the car"; the lesson's prepared answers reach it as hints instead of a lookup.
     if (this.onAsk) {
       this.ask(text, pointed);
       return;
     }
-    // Offline: the lesson's canned line.
+    // Offline: a prepared branch if one matches, else the lesson's canned line.
+    const branch = matchBranch(this.header, text, { beatId: this.beatId, pointed });
+    if (branch) {
+      this.playBranch(branch, text);
+      return;
+    }
     this.beginAnswer("Aside");
     this.insertAnswerOps(this.header.fallback.ops);
     if (this.header.fallback.resume.bridge) this.insertAnswerOps([{ op: "say", id: `fb.bridge.${this.history.length}`, text: this.header.fallback.resume.bridge }], "bridge");
@@ -601,11 +641,18 @@ export class Playhead {
     this.stopCurrent();
     if (wasAnswering) {
       // A new question replaces the answer in progress; the lesson's pending ops are untouched.
+      // What the cut-off answer managed to say and draw still goes on the record.
+      this.finalizeAskRecord();
       this.queue = this.queue.filter((i) => i.origin !== "answer" && i.origin !== "bridge");
     }
     this.answerDone = false;
     this.skipAfterAnswer = false;
     this.softPaused = false;
+    if (!wasAnswering) {
+      this.answerStartIndex = this.history.length;
+      this.answerBaseStates = new Map();
+      for (const el of Object.values(this.state.board.elements)) if (el.kind === "component") this.answerBaseStates.set(el.id, { ...(el.state ?? {}) });
+    }
     this.set({
       mode: "playing",
       answering: { title },
@@ -621,8 +668,19 @@ export class Playhead {
       switch (op.op) {
         case "show":
           return !base.has(op.element.id);
-        case "update":
-          return !base.has(op.target);
+        case "update": {
+          if (!base.has(op.target)) return true;
+          // The lesson's own figures may have their state changed for the answer; it is restored afterwards.
+          const el = this.state.board.elements[op.target];
+          if (!el || el.kind !== "component" || !Object.keys(op.patch).every((k) => k === "state")) return false;
+          // Restating the state the figure already has is not a change; drop it so the record does not count it as one.
+          const patch = op.patch["state"];
+          if (patch && typeof patch === "object" && !Array.isArray(patch)) {
+            const now = el.state ?? {};
+            if (Object.entries(patch as Record<string, unknown>).every(([k, v]) => JSON.stringify(now[k]) === JSON.stringify(v))) return false;
+          }
+          return true;
+        }
         case "move":
           return !base.has(op.from.id) && !base.has(op.to.id);
         case "clear":
@@ -741,6 +799,11 @@ export class Playhead {
       this.answerDone = true;
     }
     this.prefetchUpcoming();
+    if (this.reviewHold?.requestId === requestId) {
+      this.clearReviewHold();
+      if (this.state.mode === "playing") void this.run();
+      return;
+    }
     if (this.state.waiting === "answer" && this.state.mode === "playing") {
       this.set({ waiting: null });
       void this.run();
@@ -756,26 +819,55 @@ export class Playhead {
 
   /** The answer span has played; clear what the Tutor drew and go back to the lesson. */
   private endAnswer(): void {
+    // Record first, so the cleanup below (clearing drawings, restoring figure states) is not counted as part of the answer.
+    this.finalizeAskRecord();
     const base = this.state.layerBaseIds ? new Set(this.state.layerBaseIds) : null;
     const cleanup: QueueItem[] = [{ op: { op: "clear_highlights", id: `answer.clear.${this.history.length}` }, origin: "answer" }];
     if (base) {
       const drawn = this.state.board.order.filter((id) => !base.has(id));
       if (drawn.length > 0) cleanup.push({ op: { op: "clear", id: `answer.remove.${this.history.length}`, targets: drawn }, origin: "answer" });
     }
+    for (const [id, saved] of this.answerBaseStates) {
+      const el = this.state.board.elements[id];
+      if (!el || el.kind !== "component") continue;
+      const now = el.state ?? {};
+      if (JSON.stringify(now) === JSON.stringify(saved)) continue;
+      // Keys the Tutor added are cleared; the merge keeps them otherwise.
+      const cleared = Object.fromEntries(Object.keys(now).filter((k) => !(k in saved)).map((k) => [k, undefined]));
+      cleanup.push({ op: { op: "update", id: `answer.restore.${id}.${this.history.length}`, target: id, patch: { state: { ...cleared, ...saved } } }, origin: "answer" });
+    }
+    this.answerBaseStates = new Map();
     for (const item of cleanup) {
       this.history.push(item);
       this.set({ board: applyOp(this.state.board, item.op) });
-    }
-    const last = this.record[this.record.length - 1];
-    if (last && last.kind === "asked" && last.answered === null) {
-      const said = [...this.history].reverse().find((h) => h.origin === "answer" && h.op.op === "say");
-      if (said && said.op.op === "say") last.answered = said.op.text;
     }
     this.set({ answering: null, layerBaseIds: null });
     const check = this.state.check;
     if (check && check.result === null && this.state.mode === "playing") {
       // The question came during a check that was never answered: ask it again.
       this.set({ mode: "awaiting_check" });
+    }
+  }
+
+  /** The record keeps each answer's opening sentence and what it drew, so a repeat can be answered differently. */
+  private finalizeAskRecord(): void {
+    const last = this.record[this.record.length - 1];
+    if (last && last.kind === "asked" && last.answered === null) {
+      const span = this.history.slice(this.answerStartIndex).filter((h) => h.origin === "answer");
+      const said = span.find((h) => h.op.op === "say" && !h.op.id.endsWith(".filler"));
+      const drew = span.flatMap((h) => {
+        const op = h.op;
+        if (op.op === "show") {
+          const e = op.element;
+          const name = "title" in e && e.title ? e.title : (e.label ?? e.id);
+          return [`${e.kind.replace("_", " ")} "${name}"`];
+        }
+        if (op.op === "update") return [`set ${op.target} ${JSON.stringify("state" in op.patch ? op.patch["state"] : op.patch)}`];
+        if (op.op === "highlight") return [`highlighted ${op.targets.map((t) => (t.index === undefined ? t.id : `${t.id}[${t.index}]`)).join(" ")}`];
+        return [];
+      });
+      if (said && said.op.op === "say") last.answered = `${said.op.text}${drew.length ? ` [drew: ${drew.join("; ")}]` : ""}`;
+      else if (drew.length) last.answered = `[drew: ${drew.join("; ")}]`;
     }
   }
 
@@ -799,6 +891,8 @@ export class Playhead {
           const shown = el.steps.slice(0, el.revealed).map((st, i) => `[${i}] ${st.tex}${st.note ? ` (${st.note})` : ""}`);
           return `${el.id}: derivation${el.label ? ` "${el.label}"` : ""}, ${el.revealed} of ${el.steps.length} lines shown: ${shown.join(" ; ")}`;
         }
+        case "component":
+          return `${el.id}: figure "${el.title ?? el.label ?? el.id}" written as code${el.stateDoc ? `; state you may set with @update: ${el.stateDoc}` : ""}; state now ${JSON.stringify(el.state ?? {})}${el.parts?.length ? `; parts: ${el.parts.map((p, i) => `[${i}] ${p}`).join(", ")}` : ""}`;
       }
     });
     const outline = this.header.outline.map((b, i) => ({
@@ -861,6 +955,7 @@ export class Playhead {
     if (this.fillerTimer) clearTimeout(this.fillerTimer);
     this.holdFor = null;
     this.pendingRequest = null;
+    this.clearReviewHold();
     this.queue = this.queue.filter((i) => i.origin !== "answer" && i.origin !== "bridge");
     if (this.state.answering) this.endAnswer();
   }
@@ -986,6 +1081,7 @@ export class Playhead {
         if (el.kind === "array_row" && el.values[answer.index] !== undefined) answerText = String(el.values[answer.index]);
         else if (el.kind === "scene") answerText = el.items[answer.index]?.label ?? el.items[answer.index]?.id ?? answer.id;
         else if (el.kind === "derivation") answerText = `line ${answer.index + 1}`;
+        else if (el.kind === "component") answerText = el.parts?.[answer.index] ?? answer.id;
       }
       if (graded) correct = !!op.expected && !Array.isArray(op.expected) && sameRef(op.expected, answer);
     }

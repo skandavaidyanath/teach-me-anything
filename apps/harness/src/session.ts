@@ -201,16 +201,28 @@ export class Session {
       pointed: msg.type === "tutor.ask" ? msg.pointed : null,
       context: msg.context,
       window: msg.window,
-      lesson: { topic: this.header?.topic ?? this.topic ?? "", title: this.header?.title ?? "" },
+      lesson: {
+        topic: this.header?.topic ?? this.topic ?? "",
+        title: this.header?.title ?? "",
+        hints: (this.header?.branches ?? []).map((b) => ({
+          title: b.title ?? b.id,
+          text: b.ops.flatMap((o) => (o.op === "say" ? [o.text] : [])).join(" "),
+        })),
+      },
     };
     let firstOpMs: number | null = null;
     let firstAnswer: string | null = null;
+    const drew: string[] = [];
     for await (const ev of tutor(input, this.deps.tutorStreamer)) {
       if (this.closed) return;
       if (ev.type === "answer") {
         if (firstOpMs === null) firstOpMs = Math.round(performance.now() - started);
         const firstSay = ev.ops.find((o) => o.op === "say");
         if (!firstAnswer && firstSay && firstSay.op === "say") firstAnswer = firstSay.text;
+        for (const o of ev.ops) {
+          if (o.op === "show") drew.push(`${o.element.kind} ${o.element.id}`);
+          else if (o.op === "update") drew.push(`set ${o.target}`);
+        }
         this.send({ type: "tutor.answer", requestId: msg.requestId, ops: ev.ops });
       } else if (ev.type === "done") {
         const timing = {
@@ -223,8 +235,8 @@ export class Session {
           outputTokens: ev.outputTokens,
           fellBack: ev.fellBack,
         };
-        if (msg.type === "tutor.ask") this.record.push({ kind: "asked", beatId: msg.context.beatId, text: msg.text, answered: firstAnswer });
-        this.log.write("tutor", { requestId: msg.requestId, kind: input.kind, text: input.text, timing, replan: ev.replan, current: ev.current.length, nextPrefix: ev.nextPrefix?.length ?? null });
+        if (msg.type === "tutor.ask") this.record.push({ kind: "asked", beatId: msg.context.beatId, text: msg.text, answered: firstAnswer ? `${firstAnswer}${drew.length ? ` [drew: ${drew.join("; ")}]` : ""}` : null });
+        this.log.write("tutor", { requestId: msg.requestId, kind: input.kind, text: input.text, timing, replan: ev.replan, current: ev.current.length, nextPrefix: ev.nextPrefix?.length ?? null, drew, addendum: ev.addendum, effort: ev.effort });
         this.send({ type: "tutor.done", requestId: msg.requestId, current: ev.current, nextPrefix: ev.nextPrefix, timing, replan: ev.replan });
         if (ev.replan) void this.replan(ev.replan.fromBeatId, ev.replan.reason);
       } else {

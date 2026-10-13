@@ -38,6 +38,13 @@ export function applyOp(state: BoardState, op: Op): BoardState {
       const current = state.elements[op.target];
       if (!current) return state;
       let next = { ...current, ...op.patch } as Element;
+      if (current.kind === "component" && next.kind === "component") {
+        // A figure's state is patched, not replaced, so a beat can change one field.
+        const patchState = op.patch["state"];
+        if (patchState && typeof patchState === "object" && !Array.isArray(patchState)) {
+          next = { ...next, state: { ...(current.state ?? {}), ...(patchState as Record<string, unknown>) } };
+        }
+      }
       if (next.kind === "array_row" && "values" in op.patch) {
         // New values have no relation to the old cells; give them fresh identity.
         next = withCellIds({ ...next, cellIds: undefined }, op.id);

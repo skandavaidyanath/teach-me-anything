@@ -113,6 +113,27 @@ export const DerivationSchema = z.object({
   focus: z.number().int().nonnegative().optional(),
 });
 
+/**
+ * A figure written as code: the body of an HTML page (markup, a <style>, a
+ * <script>) that runs in a sandboxed frame on the board. It renders from
+ * `state`, which `update` ops patch with {"state": {...}}; the frame learns
+ * of every change through window.tma. `parts` names the elements inside it
+ * that highlight and click checks address, as ID[index] in that order.
+ */
+export const ComponentSchema = z.object({
+  kind: z.literal("component"),
+  ...ElementBase,
+  title: z.string().optional(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  code: z.string().min(1),
+  state: z.record(z.string(), z.unknown()).optional(),
+  /** What each state field means and what it may be set to, for the Tutor. */
+  stateDoc: z.string().optional(),
+  parts: z.array(z.string()).optional(),
+  caption: z.string().optional(),
+});
+
 export const ElementSchema = z.discriminatedUnion("kind", [
   TextCardSchema,
   LatexCardSchema,
@@ -120,6 +141,7 @@ export const ElementSchema = z.discriminatedUnion("kind", [
   SplitTreeSchema,
   SceneSchema,
   DerivationSchema,
+  ComponentSchema,
 ]);
 export type Element = z.infer<typeof ElementSchema>;
 export type TextCard = z.infer<typeof TextCardSchema>;
@@ -128,6 +150,7 @@ export type ArrayRow = z.infer<typeof ArrayRowSchema>;
 export type SplitTree = z.infer<typeof SplitTreeSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
 export type Derivation = z.infer<typeof DerivationSchema>;
+export type Component = z.infer<typeof ComponentSchema>;
 
 // ---------------------------------------------------------------------------
 // Pins: what accumulates in the rail

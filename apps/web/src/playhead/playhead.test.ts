@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mergeSortLesson } from "@tma/content";
-import { headerFromLesson } from "@tma/schema";
+import { headerFromLesson, type Lesson } from "@tma/schema";
 import { Playhead } from "./playhead";
 import type { SpeakHandle, SpeakOutcome, Speaker } from "./speaker";
 
@@ -297,5 +297,153 @@ describe("Playhead", () => {
     expect(ph.getState().beatIndex).toBe(2);
     ph.appendBeat({ id: "n3", title: "A gentler path", ops: [{ op: "say", id: "n3.s1", text: "Let us take this slowly." }, { op: "check", id: "n3.k1", kind: "choice", prompt: "Ok?", options: ["Yes"], graded: false }] }, 2);
     await speakTo(speaker, ph, "Let us take this slowly.");
+  });
+});
+
+describe("routing and reviews, v0.3", () => {
+  it("online, a question that matches a prepared branch still goes to the tutor", async () => {
+    const { speaker, ph } = make();
+    const asks: Array<Parameters<NonNullable<Playhead["onAsk"]>>[0]> = [];
+    ph.onAsk = (req) => asks.push(req);
+    ph.start(null);
+    await speakTo(speaker, ph, S1);
+    ph.submitInput("wait, I don't get how the merge knows which one to take");
+    expect(asks).toHaveLength(1);
+    expect(ph.getState().answering?.title).toBe("Answering");
+  });
+
+  it("holds the next beat for a review that is still out, then plays the edit", async () => {
+    const speaker = new ManualSpeaker();
+    const ph = Playhead.fromLesson(mergeSortLesson, { speaker, settleScale: 0.1 });
+    const reviews: Array<Parameters<NonNullable<Playhead["onReview"]>>[0]> = [];
+    ph.onReview = (req) => reviews.push(req);
+    ph.start("No");
+    await playToCheck(speaker, ph);
+    ph.answerCheck({ id: "A", index: 0 });
+    const req = reviews[0]!;
+    await speakTo(speaker, ph, "The rest follows the same rule until both lists are empty.");
+    speaker.finish();
+    await until(() => ph.getState().waiting === "review", "holding for the review");
+    expect(ph.getState().beatIndex).toBe(0);
+    ph.applyWindow(req.requestId, [], [{ op: "say", id: "t.r1", text: "Slowly now." }, ...req.window.nextPrefix.slice(1)], null);
+    await speakTo(speaker, ph, "Slowly now.");
+    expect(ph.getState().beatIndex).toBe(1);
+    expect(ph.getState().waiting).toBeNull();
+  });
+
+  it("gives up on a review that never comes and plays the beat as written", async () => {
+    const { speaker, ph } = make();
+    ph.onReview = () => {};
+    ph.start("No");
+    await playToCheck(speaker, ph);
+    ph.answerCheck({ id: "A", index: 0 });
+    await speakTo(speaker, ph, "The rest follows the same rule until both lists are empty.");
+    speaker.finish();
+    await speakTo(speaker, ph, B2_S1);
+    expect(ph.getState().beatIndex).toBe(1);
+  });
+
+  it("the tutor may change a figure's state for an answer, and it is restored afterwards", async () => {
+    const speaker = new ManualSpeaker();
+    const lesson: Lesson = {
+      ...mergeSortLesson,
+      beats: [
+        {
+          id: "f1",
+          title: "Fig",
+          ops: [
+            { op: "show", id: "f1.e1", element: { kind: "component", id: "P", width: 600, height: 360, code: "<svg/>", state: { frame: "ground" } } },
+            { op: "say", id: "f1.s1", text: "Look." },
+            { op: "say", id: "f1.s2", text: "Next." },
+            { op: "check", id: "f1.k1", kind: "choice", prompt: "Ok?", options: ["Yes"], graded: false },
+          ],
+        },
+      ],
+    };
+    const ph = Playhead.fromLesson(lesson, { speaker, settleScale: 0 });
+    let req: Parameters<NonNullable<Playhead["onAsk"]>>[0] | null = null;
+    ph.onAsk = (r) => (req = r);
+    ph.start(null);
+    await speakTo(speaker, ph, "Look.");
+    ph.submitInput("what if I ride along?");
+    expect(req).not.toBeNull();
+    const id = req!.requestId;
+    ph.appendAnswerOps(id, [
+      { op: "update", id: "t.u1", target: "P", patch: { state: { frame: "ball", rider: true } } },
+      { op: "say", id: "t.s1", text: "From the ball it looks still." },
+    ]);
+    await speakTo(speaker, ph, "From the ball it looks still.");
+    expect(ph.getState().board.elements["P"]).toMatchObject({ state: { frame: "ball", rider: true } });
+    speaker.finish();
+    ph.applyWindow(id, req!.window.current, null, null);
+    await speakTo(speaker, ph, "Look.");
+    const el = ph.getState().board.elements["P"];
+    expect(el?.kind === "component" ? el.state : null).toEqual({ frame: "ground" });
+    expect(req!.context.boardSummary[0]).toContain("state now {\"frame\":\"ground\"}");
+  });
+
+  it("a question that cuts off an answer still records what that answer said and drew", async () => {
+    const { speaker, ph } = make();
+    const asks: Array<Parameters<NonNullable<Playhead["onAsk"]>>[0]> = [];
+    ph.onAsk = (req) => asks.push(req);
+    ph.start(null);
+    await speakTo(speaker, ph, S1);
+    ph.submitInput("why does it keep going straight?");
+    ph.appendAnswerOps(asks[0]!.requestId, [
+      { op: "show", id: "t.e1", element: { kind: "scene", id: "car", label: "a car from above", width: 400, height: 300, items: [{ id: "you", type: "dot", cx: 1, cy: 1 }] } },
+      { op: "say", id: "t.s1", text: "Nothing pushes it; it goes straight on its own." },
+      { op: "say", id: "t.s2", text: "The door is what bends the path." },
+    ]);
+    await speakTo(speaker, ph, "Nothing pushes it; it goes straight on its own.");
+    speaker.finish();
+    await speakTo(speaker, ph, "The door is what bends the path.");
+    ph.submitInput("no i still dont get it");
+    expect(asks).toHaveLength(2);
+    // The second question's context carries the first one, finalized, even though its answer was cut off.
+    const asked = asks[1]!.context.record.filter((r) => r.kind === "asked");
+    expect(asked).toEqual([{ kind: "asked", beatId: "b1", text: "why does it keep going straight?", answered: 'Nothing pushes it; it goes straight on its own. [drew: scene "a car from above"]' }]);
+  });
+});
+
+
+describe("answer-time figure changes", () => {
+  it("drops a state update that restates what the figure already shows, and ignores the filler in the record", async () => {
+    const speaker = new ManualSpeaker();
+    const lesson: Lesson = {
+      ...mergeSortLesson,
+      beats: [
+        {
+          id: "f1",
+          title: "Fig",
+          ops: [
+            { op: "show", id: "f1.e1", element: { kind: "component", id: "P", width: 600, height: 360, code: "<svg/>", state: { frame: "ground", speed: 1 } } },
+            { op: "say", id: "f1.s1", text: "Look." },
+            { op: "check", id: "f1.k1", kind: "choice", prompt: "Ok?", options: ["Yes"], graded: false },
+          ],
+        },
+      ],
+    };
+    const ph = Playhead.fromLesson(lesson, { speaker, settleScale: 0 });
+    const asks: Array<Parameters<NonNullable<Playhead["onAsk"]>>[0]> = [];
+    ph.onAsk = (r) => asks.push(r);
+    ph.start(null);
+    await speakTo(speaker, ph, "Look.");
+    ph.submitInput("what if I ride along?");
+    const id = asks[0]!.requestId;
+    ph.appendAnswerOps(id, [
+      { op: "say", id: `${id}.filler`, text: "Good question." },
+      { op: "update", id: "t.u1", target: "P", patch: { state: { frame: "ground", speed: 1 } } },
+      { op: "update", id: "t.u2", target: "P", patch: { state: { speed: 0.5 } } },
+      { op: "say", id: "t.s1", text: "Slower now." },
+    ]);
+    await speakTo(speaker, ph, "Good question.");
+    speaker.finish();
+    await speakTo(speaker, ph, "Slower now.");
+    speaker.finish();
+    ph.applyWindow(id, asks[0]!.window.current, null, null);
+    await speakTo(speaker, ph, "Look.");
+    ph.submitInput("still lost");
+    const asked = asks[1]!.context.record.filter((r) => r.kind === "asked");
+    expect(asked[0]).toMatchObject({ answered: 'Slower now. [drew: set P {"speed":0.5}]' });
   });
 });

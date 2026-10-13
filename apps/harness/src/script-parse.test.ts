@@ -60,3 +60,39 @@ describe("ScriptParser", () => {
   });
 });
 
+
+describe("ScriptParser: figures as code", () => {
+  it("collects a component block as one show op and speaks none of it", () => {
+    const code = ['<svg id="s"><circle id="ball" r="5"/></svg>', "<script>", '  tma.onFrame(function (t) { document.getElementById("ball").setAttribute("cx", 10 * t); });', "</script>"];
+    const out = run(["Watch this.\n@component R \"A rider\" 500x300 parts=ball state={\"frame\":\"ball\"}\n" + code.join("\n") + "\n@end\nkeep 2\n"]);
+    expect(out.map((c) => (c.kind === "op" ? c.op.op : c.kind))).toEqual(["say", "show", "keep"]);
+    const show = out[1];
+    expect(show).toMatchObject({
+      kind: "op",
+      op: { op: "show", id: "r1.e1", element: { kind: "component", id: "R", title: "A rider", width: 500, height: 300, parts: ["ball"], state: { frame: "ball" }, code: code.join("\n") } },
+    });
+  });
+
+  it("does not split code into sentences across chunk boundaries", () => {
+    const p = new ScriptParser("r1");
+    const a = p.push("@component C 400x200\n<p>Hello. World. Again.</p>\n<script>var x = 1. ");
+    const b = p.push("5; </script>\n@end\n");
+    expect(a).toEqual([]);
+    expect(b).toHaveLength(1);
+    expect(b[0]).toMatchObject({ kind: "op", op: { op: "show", element: { kind: "component", code: "<p>Hello. World. Again.</p>\n<script>var x = 1. 5; </script>" } } });
+  });
+
+  it("closes a block the model forgot to end, and discards one with a bad header", () => {
+    expect(run(["@component Z 300x300\n<b>x</b>\n"])).toMatchObject([{ kind: "op", op: { op: "show", element: { kind: "component", id: "Z", code: "<b>x</b>" } } }]);
+    expect(run(["@component\n<b>x</b>\n@end\nDone.\n"])).toEqual([{ kind: "op", op: { op: "say", id: "r1.s1", text: "Done." } }]);
+  });
+
+  it("parses state updates and one-line scenes", () => {
+    const out = run(['@update P: {"frame":"ball","speed":2}\n@scene S "forces" 420x300: [{"id":"b","type":"dot","cx":1,"cy":2},{"bogus":true}]\n@update P {"x":1}\n@update P nope\n']);
+    expect(out).toEqual([
+      { kind: "op", op: { op: "update", id: "r1.u1", target: "P", patch: { state: { frame: "ball", speed: 2 } } } },
+      { kind: "op", op: { op: "show", id: "r1.e2", element: { kind: "scene", id: "S", label: "forces", width: 420, height: 300, items: [{ id: "b", type: "dot", cx: 1, cy: 2 }] } } },
+      { kind: "op", op: { op: "update", id: "r1.u3", target: "P", patch: { state: { x: 1 } } } },
+    ]);
+  });
+});
