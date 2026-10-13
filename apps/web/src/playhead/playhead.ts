@@ -19,7 +19,7 @@ import {
 } from "@tma/schema";
 import { applyOp, emptyBoard, replay, type BoardState } from "./board-reducer";
 import { matchBranch, matchNav } from "./dispatcher";
-import { createSpeaker, speechAvailable, type SpeakHandle, type Speaker } from "./speaker";
+import { createSpeaker, speechAvailable, type Pace, type SpeakHandle, type Speaker, type SpeechItem } from "./speaker";
 
 /**
  * The playhead executes ops in order, owns the local interrupt path, and
@@ -40,7 +40,7 @@ export type SpeakerKind = "voice" | "silent";
 
 type QueueItem = { op: Op; origin: Origin };
 
-export type Caption = { text: string; spokenChars: number; origin: Origin };
+export type Caption = { text: string; spokenChars: number; origin: Origin; key?: boolean };
 export type CheckState = { op: CheckOp; result: { correct: boolean; answer: string } | null };
 
 export type AskTelemetry = {
@@ -91,6 +91,11 @@ type Listener = () => void;
 
 const SETTLE_MS: Partial<Record<Op["op"], number>> = { show: 420, update: 520, move: 560, highlight: 320, clear_highlights: 120, clear: 240 };
 const FILLERS = ["Good question.", "Let me think about that for a second.", "Right, let me answer that."];
+const FILLER_ITEMS: SpeechItem[] = FILLERS.map((text) => ({ text }));
+/** Silence after a key sentence, so it lands. */
+const KEY_PAUSE_MS = 700;
+
+const paceOf = (op: Extract<Op, { op: "say" }>): Pace | undefined => op.pace ?? (op.key ? "slow" : undefined);
 const PREFETCH_AHEAD = 3;
 /** How much of the next beat the Tutor may edit. */
 const NEXT_PREFIX_OPS = 5;
@@ -99,10 +104,10 @@ const REVIEW_WAIT_MS = 2500;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-function firstSays(ops: Op[], n: number): string[] {
-  const out: string[] = [];
+function firstSays(ops: Op[], n: number): SpeechItem[] {
+  const out: SpeechItem[] = [];
   for (const op of ops) {
-    if (op.op === "say") out.push(op.text);
+    if (op.op === "say") out.push({ text: op.text, ...(paceOf(op) ? { pace: paceOf(op) } : {}) });
     if (out.length >= n) break;
   }
   return out;
@@ -245,7 +250,7 @@ export class Playhead {
     this.reviewedAt[at] = this.eventCount;
     this.set({ loadedBeats: this.beats.filter(Boolean).length });
     if (at === 0 && (this.state.mode === "calibrating" || this.state.mode === "idle")) {
-      this.speaker.prefetch?.([...FILLERS, ...firstSays(beat.ops, PREFETCH_AHEAD)]);
+      this.speaker.prefetch?.([...FILLER_ITEMS, ...firstSays(beat.ops, PREFETCH_AHEAD)]);
     }
     if (this.waitingForBeat && at === this.state.beatIndex) {
       this.waitingForBeat = false;
@@ -302,16 +307,16 @@ export class Playhead {
   }
 
   private prefetchUpcoming(): void {
-    const texts: string[] = [];
+    const items: SpeechItem[] = [];
     for (const item of this.queue) {
-      if (item.op.op === "say") texts.push(item.op.text);
-      if (texts.length >= PREFETCH_AHEAD) break;
+      if (item.op.op === "say") items.push({ text: item.op.text, ...(paceOf(item.op) ? { pace: paceOf(item.op) } : {}) });
+      if (items.length >= PREFETCH_AHEAD) break;
     }
-    if (texts.length < PREFETCH_AHEAD) {
+    if (items.length < PREFETCH_AHEAD) {
       const next = this.beats[this.state.beatIndex + 1];
-      if (next) texts.push(...firstSays(next.ops, PREFETCH_AHEAD - texts.length));
+      if (next) items.push(...firstSays(next.ops, PREFETCH_AHEAD - items.length));
     }
-    if (texts.length) this.speaker.prefetch?.(texts);
+    if (items.length) this.speaker.prefetch?.(items);
   }
 
   // ---- lifecycle ----------------------------------------------------------
@@ -341,7 +346,7 @@ export class Playhead {
     });
     if (calibrationAnswer) this.note({ kind: "calibration", answer: calibrationAnswer });
     this.emit({ kind: "lesson_started", calibrationAnswer });
-    this.speaker.prefetch?.(FILLERS);
+    this.speaker.prefetch?.(FILLER_ITEMS);
     if (this.beats[0]) {
       this.loadBeatQueue(0);
       void this.run();
@@ -403,7 +408,8 @@ export class Playhead {
       case "say": {
         this.inFlight = item;
         const staleVerdict = item.origin !== "reaction" && this.state.check?.result ? { check: null } : {};
-        this.set({ caption: { text: op.text, spokenChars: 0, origin: item.origin }, waiting: null, ...staleVerdict });
+        const pace = paceOf(op);
+        this.set({ caption: { text: op.text, spokenChars: 0, origin: item.origin, ...(op.key ? { key: true } : {}) }, waiting: null, ...staleVerdict });
         this.prefetchUpcoming();
         let audioMarked = false;
         const handle = this.speaker.speak(op.text, (chars) => {
@@ -415,7 +421,7 @@ export class Playhead {
           }
           const caption = this.state.caption;
           if (caption && caption.text === op.text) this.set({ caption: { ...caption, spokenChars: chars } });
-        });
+        }, pace ? { pace } : undefined);
         this.speakHandle = handle;
         const outcome = await handle.done;
         if (token !== this.runToken) return;
@@ -426,7 +432,10 @@ export class Playhead {
           this.pauseAtBoundary = false;
           this.softPaused = true;
           this.set({ mode: "paused" });
+          return;
         }
+        // A key sentence gets a beat of silence after it.
+        if (op.key) await sleep(KEY_PAUSE_MS * this.settleScale);
         return;
       }
       case "pause":

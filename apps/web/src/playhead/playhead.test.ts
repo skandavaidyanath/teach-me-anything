@@ -2,20 +2,22 @@ import { describe, expect, it } from "vitest";
 import { mergeSortLesson } from "@tma/content";
 import { headerFromLesson, type Lesson } from "@tma/schema";
 import { Playhead } from "./playhead";
-import type { SpeakHandle, SpeakOutcome, Speaker } from "./speaker";
+import type { SpeakHandle, SpeakOptions, SpeakOutcome, Speaker } from "./speaker";
 
 /** A speaker the test drives by hand: nothing finishes until `finish()`. */
 class ManualSpeaker implements Speaker {
   readonly kind = "silent" as const;
   spoken: string[] = [];
+  opts: Array<SpeakOptions | undefined> = [];
   private pending: Array<{ text: string; resolve: (o: SpeakOutcome) => void }> = [];
 
   get current(): string | null {
     return this.pending[0]?.text ?? null;
   }
 
-  speak(text: string, onProgress: (chars: number) => void): SpeakHandle {
+  speak(text: string, onProgress: (chars: number) => void, opts?: SpeakOptions): SpeakHandle {
     this.spoken.push(text);
+    this.opts.push(opts);
     let resolve!: (o: SpeakOutcome) => void;
     const done = new Promise<SpeakOutcome>((r) => (resolve = r));
     const entry = { text, resolve };
@@ -445,5 +447,40 @@ describe("answer-time figure changes", () => {
     ph.submitInput("still lost");
     const asked = asks[1]!.context.record.filter((r) => r.kind === "asked");
     expect(asked[0]).toMatchObject({ answered: 'Slower now. [drew: set P {"speed":0.5}]' });
+  });
+});
+
+describe("pacing", () => {
+  it("a key sentence is spoken slowly, shown as the key caption, and followed by a silence", async () => {
+    const speaker = new ManualSpeaker();
+    const lesson: Lesson = {
+      ...mergeSortLesson,
+      beats: [
+        {
+          id: "p1",
+          title: "Pace",
+          ops: [
+            { op: "say", id: "p1.s1", text: "Look at this." },
+            { op: "say", id: "p1.s2", text: "The pull points inward.", key: true },
+            { op: "say", id: "p1.s3", text: "And that is why.", pace: "quick" },
+            { op: "check", id: "p1.k1", kind: "choice", prompt: "Ok?", options: ["Yes"], graded: false },
+          ],
+        },
+      ],
+    };
+    const ph = Playhead.fromLesson(lesson, { speaker, settleScale: 0.05 });
+    ph.start(null);
+    await speakTo(speaker, ph, "Look at this.");
+    expect(speaker.opts[0]).toBeUndefined();
+    speaker.finish();
+    await speakTo(speaker, ph, "The pull points inward.");
+    expect(ph.getState().caption).toMatchObject({ text: "The pull points inward.", key: true });
+    expect(speaker.opts[1]).toEqual({ pace: "slow" });
+    const t0 = performance.now();
+    speaker.finish();
+    await speakTo(speaker, ph, "And that is why.");
+    expect(performance.now() - t0).toBeGreaterThanOrEqual(30);
+    expect(speaker.opts[2]).toEqual({ pace: "quick" });
+    expect(ph.getState().caption?.key).toBeUndefined();
   });
 });

@@ -13,19 +13,27 @@ export type SpeakHandle = {
 
 export type SpeakerKind = "voice" | "silent";
 
+export type Pace = "slow" | "quick";
+export type SpeakOptions = { pace?: Pace };
+export type SpeechItem = { text: string; pace?: Pace };
+
+/** Relative speaking rate for a pace: Cartesia's generation_config.speed, the browser engine's rate, and the caption clock. */
+export const PACE_SPEED: Record<Pace, number> = { slow: 0.85, quick: 1.12 };
+export const speedFor = (pace?: Pace): number => (pace ? PACE_SPEED[pace] : 1);
+
 export interface Speaker {
   readonly kind: SpeakerKind;
   /** `onProgress` receives the number of characters spoken so far. */
-  speak(text: string, onProgress: (chars: number) => void): SpeakHandle;
+  speak(text: string, onProgress: (chars: number) => void, opts?: SpeakOptions): SpeakHandle;
   /** Warm up upcoming sentences, if the speaker has anything to fetch. */
-  prefetch?(texts: string[]): void;
+  prefetch?(items: SpeechItem[]): void;
 }
 
 const WORDS_PER_MINUTE = 165;
 
-function estimateMs(text: string): number {
+function estimateMs(text: string, pace?: Pace): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(900, (words / WORDS_PER_MINUTE) * 60_000);
+  return Math.max(900, (words / (WORDS_PER_MINUTE * speedFor(pace))) * 60_000);
 }
 
 export function speechAvailable(): boolean {
@@ -36,8 +44,8 @@ export function speechAvailable(): boolean {
 export class SilentSpeaker implements Speaker {
   readonly kind = "silent" as const;
 
-  speak(text: string, onProgress: (chars: number) => void): SpeakHandle {
-    const total = estimateMs(text);
+  speak(text: string, onProgress: (chars: number) => void, opts?: SpeakOptions): SpeakHandle {
+    const total = estimateMs(text, opts?.pace);
     const started = performance.now();
     let settled = false;
     let resolveDone: (o: SpeakOutcome) => void = () => {};
@@ -91,13 +99,13 @@ function pickVoice(): SpeechSynthesisVoice | null {
 export class WebSpeechSpeaker implements Speaker {
   readonly kind = "voice" as const;
 
-  speak(text: string, onProgress: (chars: number) => void): SpeakHandle {
+  speak(text: string, onProgress: (chars: number) => void, opts?: SpeakOptions): SpeakHandle {
     const synth = window.speechSynthesis;
     // A lingering utterance from a previous page state would otherwise queue behind ours.
     synth.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
+    utterance.rate = speedFor(opts?.pace);
     utterance.pitch = 1;
     const voice = pickVoice();
     if (voice) utterance.voice = voice;
@@ -115,7 +123,7 @@ export class WebSpeechSpeaker implements Speaker {
     let progress = 0;
     let engineStarted = false;
     let stalled = false;
-    const total = estimateMs(text);
+    const total = estimateMs(text, opts?.pace);
     const started = performance.now();
     const report = (chars: number) => {
       progress = Math.max(progress, Math.min(text.length, chars));

@@ -178,7 +178,9 @@ export type HighlightTone = z.infer<typeof HighlightToneSchema>;
 export const CheckKindSchema = z.enum(["choice", "click_cell", "free_text"]);
 export type CheckKind = z.infer<typeof CheckKindSchema>;
 
-export type SayOp = { op: "say"; id: string; text: string };
+/** How a sentence is spoken. `key` marks the one sentence in a beat that carries the idea: spoken slowly, followed by a short silence, set apart in the caption. */
+export type Pace = "slow" | "quick";
+export type SayOp = { op: "say"; id: string; text: string; pace?: Pace; key?: boolean };
 export type ShowOp = { op: "show"; id: string; element: Element };
 export type UpdateOp = { op: "update"; id: string; target: string; patch: Record<string, unknown> };
 /** Move one cell of an array row into another row (or another position). The cell keeps its identity, so it animates. */
@@ -219,7 +221,8 @@ export type Op =
 
 const OpBase = { id: z.string().min(1) };
 
-const SayOpSchema = z.object({ op: z.literal("say"), ...OpBase, text: z.string().min(1) });
+export const PaceSchema = z.enum(["slow", "quick"]);
+const SayOpSchema = z.object({ op: z.literal("say"), ...OpBase, text: z.string().min(1), pace: PaceSchema.optional(), key: z.boolean().optional() });
 const ShowOpSchema = z.object({ op: z.literal("show"), ...OpBase, element: ElementSchema });
 const UpdateOpSchema = z.object({
   op: z.literal("update"),

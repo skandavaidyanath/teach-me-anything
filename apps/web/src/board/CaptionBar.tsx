@@ -61,7 +61,7 @@ export function CaptionBar({ state, playhead }: { state: PlayheadState; playhead
             {check.op.kind === "free_text" && <span className="text-[15px] text-ink-soft">Type your answer below.</span>}
           </div>
         ) : caption ? (
-          <p className="max-w-[70ch] text-[26px] leading-snug">
+          <p className={["max-w-[70ch] leading-snug", caption.key ? "caption-key text-[30px]" : "text-[26px]"].join(" ")}>
             {words.map((w, i) => (
               <span key={i} className="caption-word" data-spoken={caption.spokenChars >= w.end || caption.spokenChars >= caption.text.length}>
                 {w.text}

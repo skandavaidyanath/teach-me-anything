@@ -96,3 +96,16 @@ Voice counts, whole transcript versus all say lines of a lesson (sentences, aver
 What now reads like the references, in the lessons under docs/examples: the hook as a claim ("the force that throws you against the car door does not exist, and by the end you will see what is really going on"), "pause here and decide where the ball goes", "notice what I am not saying: I am not saying the pull drags the ball in", "whoa, but if the only real force points in, why does the outward shove feel so real", "if that feels like cheating, good", "I like this formula because the v squared is the quadrupling you just watched", the formula last with each symbol pointed at a part, and the return to the opening claim. The Josephus lesson in write-along mode follows the Numberphile video's own structure: start with seven, work every kill by hand, gather one through eight, "that surprised me, seat one is back", spot the climb by two, state the rule, check it against the table, swap numbers for symbols in the same places, then explain why powers of two reset.
 
 What still differs: our sentences run about 21 words against 12 to 15 in the spoken sources, and we ask the learner a question every 15 to 30 sentences where the sources ask every 5 to 10. Added to the guide as numeric rules (most sentences under fifteen words; a question to the learner every few sentences), then checked on a topic not used while writing the guide, "why is the sky blue": 48 sentences at 17.6 words, 9 questions, 1 voiced objection, 16 "you". That is inside the sources' range on both counts. The four example lessons are in docs/examples.
+
+## Pacing and sentence length, 2026-10-13
+
+Raised after the style pass: our sentences were still longer than spoken video and hard to follow, and key ideas need to be said slowly instead of everything at one pace and tone.
+
+What changed (decision 41): a say op is one sentence of at most eighteen words, the harness splits any op holding several sentences, logs words per sentence for every beat, and makes one short call to split anything past twenty-six words. One sentence per beat is marked `key`: spoken slowly through Cartesia's speed control, followed by 700 ms of silence, set apart in the caption. The Tutor marks its own with `@key`.
+
+Measured on three fresh topics after the change (bicycle balance, the moon's far side, a refrigerator): 11.5 to 13 words per sentence in every beat, longest 13 to 17, one key line per beat, zero sentences needing the repair call. Key lines as written: "The bike steers itself into its own lean." "One turn per lap keeps the same face on Earth." "Tides brake the spin until it matches the orbit."
+
+Not verified: how the slowed key line sounds. Cartesia returned HTTP 402 (credits used up) during the evening's runs, so the speed field is built to the documented API and present in the request, but no audio came back to listen to. The account needs topping up before the next review.
+
+Side effect found and fixed: the style guide roughly doubled the Planner's output at high effort, which pushed beat 3 to 228 s in one run. The slow tier now writes beat 3 alone at medium effort the moment beat 2 is done, with the rest streamed in parallel; beat 3 landed at 62 s on the next run.
+

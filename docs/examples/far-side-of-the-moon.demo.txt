@@ -1,0 +1,173 @@
+[  7s] HEADER "The moon is spinning, and that is why you never see its back" style=demo topic=why do we see only one side of the moon
+      calibration: Before we start: does the moon spin on its own axis? {Yes | No | Not sure}
+      - b1 The claim that sounds wrong: The moon always shows Earth the same face, and the surprising reason is that it does spin, exactly once per orbit.
+      - b2 Watch it orbit without spinning: A moon that circles Earth without rotating would show Earth every side of itself over one orbit, so a non-spinning moon cannot explain the fixed face.
+      - b3 Spin once per lap: When the moon turns once on its axis in exactly the time it takes to orbit once, the same face stays pointed at Earth the whole way around.
+      - b4 Relative to what?: From Earth the moon looks still, but from the distant stars it clearly turns once per orbit, so whether it spins depends on the viewpoint you measure from.
+      - b5 Why the spin matches: Earth's gravity stretched the young moon into a slight bulge and tugged on it until its spin slowed to match its orbit, which is called tidal locking.
+      - b6 Back to the hook: We see one side because the moon spins exactly once per orbit, locked there by tides, and the same thing happens to many moons.
+
+[ 26s] BEAT 1 "The claim that sounds wrong"  [10 sentences, avg 11.5 words, max 13, key 1]
+    [show scene S]
+    Every night you look up, the moon shows you the exact same face.
+    This big circle is Earth, and this dot out here is the moon.
+    [highlight S[3]]
+    This little spot is the near face, the side pointed at you.
+    Most people guess the moon never spins, so its back stays hidden.
+    slow· I'm going to claim the opposite.
+    ★ The moon spins, and that is why you never see its back.
+    [clear_highlights]
+    [pin "One face, always" :: The moon keeps the same face toward Earth, and spinning is the reason, not a lack of it.]
+    Before we test that, pause and make your own prediction.
+    [CHECK choice: Suppose the moon did not spin at all as it went around. What would we see? {The same face, always | Every side, over one orbit | Only the back side} expected ["Every side, over one orbit","every side"]]
+      ✓ [update S {"items":[{"id":"orbit","type":"circle","cx":210,"cy":150,"r":110,"dashed":true,"label":"the moon's path"},{"id":"earth","type":"circle","cx":210,"cy":150,"r":30,"label":"Earth"},{"id":"moon","type":"dot","cx":100,"cy":150,"r":14,"label":"the moon"},{"id":"face","type":"dot","cx":88,"cy":150,"r":5,"label":"near face"},{"id":"txt","type":"text","x":20,"y":285,"text":"halfway round, no spin: the spot faces away","size":13}]}]
+      ✓ Right, halfway round with no spin, that spot points away from Earth.
+      ✗ [update S {"items":[{"id":"orbit","type":"circle","cx":210,"cy":150,"r":110,"dashed":true,"label":"the moon's path"},{"id":"earth","type":"circle","cx":210,"cy":150,"r":30,"label":"Earth"},{"id":"moon","type":"dot","cx":100,"cy":150,"r":14,"label":"the moon"},{"id":"face","type":"dot","cx":88,"cy":150,"r":5,"label":"near face"},{"id":"txt","type":"text","x":20,"y":285,"text":"halfway round, no spin: the spot faces away","size":13}]}]
+      ✗ [highlight S[3]]
+      ✗ That's a natural guess, but look where the spot ends up halfway round.
+      ✗ Without spinning, it points away from Earth, so we'd see the back.
+      ✗ [clear_highlights]
+
+[ 36s] BEAT 2 "Watch it orbit without spinning"  [11 sentences, avg 11.7 words, max 16, key 0]
+    You might think the simplest answer is that the moon does not spin at all.
+    Let's test that on the board.
+    [show component P "The moon circling Earth, seen from above" [38 lines of code; state {"spin":"none","running":true,"angle":0,"speed":30}; parts ["earth","orbit","moon","face"]]]
+    [highlight P[0]]
+    This blue circle is Earth, seen from far above.
+    [highlight P[3]]
+    This shaded half is one face of the moon, and it starts pointing at Earth.
+    [clear_highlights]
+    Here the moon never turns; it only slides around the dashed circle.
+    [update P {"state":{"running":false,"angle":0}}]
+    Let's freeze it at the start and think before it moves.
+    [pin "No spin shows every side" :: A moon that never turns would point each of its faces at Earth during one orbit.]
+    Pause here and decide: halfway around, where does the shaded face point?
+    [CHECK choice: The moon goes halfway around Earth without spinning. Where does the shaded face point? {Toward Earth | Away from Earth | Sideways} expected ["Away from Earth","away"]]
+      ✓ [update P {"state":{"running":false,"angle":180}}]
+      ✓ [highlight P[3]]
+      ✓ ★ Right, it points straight away, so Earth would see the back.
+      ✓ [clear_highlights]
+      ✓ [update P {"state":{"running":true}}]
+      ✓ So a moon that never spins cannot be the answer.
+      ✗ [update P {"state":{"running":false,"angle":180}}]
+      ✗ [highlight P[3] P[0]]
+      ✗ ★ A good guess, but the face keeps pointing left, and Earth is now on its right.
+      ✗ So Earth would see the back, which means a non-spinning moon fails.
+      ✗ [clear_highlights]
+      ✗ [update P {"state":{"running":true}}]
+
+[ 62s] BEAT 3 "Spin once per lap"  [13 sentences, avg 12.5 words, max 17, key 1]
+    So a moon that never turns would show us its back.
+    What kind of turning would keep the shaded face on Earth instead?
+    [update P {"state":{"spin":"locked","running":true,"speed":30}}]
+    Watch the same moon now, turning slowly as it goes around.
+    [highlight P[3]]
+    This shaded face stays pointed at Earth the whole way round.
+    [update P {"state":{"running":false,"angle":90}}]
+    Let's freeze it a quarter of the way around.
+    [highlight P[3] P[0]]
+    At the start the face pointed left; now it points down, at Earth.
+    A quarter lap took exactly a quarter turn of the moon itself.
+    ★ One turn per lap keeps the same face on Earth.
+    [clear_highlights]
+    Notice what I'm not saying: the moon isn't frozen in place, it really turns.
+    [pin "One spin per orbit" :: Turning once on its axis for each trip around Earth keeps the same face pointed at us.]
+    [update P {"state":{"running":true}}]
+    Keep watching, and decide before it finishes the lap: how many turns is that?
+    [CHECK choice: In one full trip around Earth, how many times does the moon turn on its own axis? {Zero | Once | Twice} expected ["Once","once","one","1"]]
+      ✓ [update P {"state":{"running":false,"angle":180}}]
+      ✓ [highlight P[3]]
+      ✓ Yes, once: half a lap took half a turn, so a full lap takes one.
+      ✓ [clear_highlights]
+      ✓ [update P {"state":{"running":true}}]
+      ✗ [update P {"state":{"running":false,"angle":180}}]
+      ✗ [highlight P[3] P[0]]
+      ✗ A fair guess, but look: halfway round, the face has turned half a turn to face Earth.
+      ✗ So a full lap takes exactly one full turn, no more and no fewer.
+      ✗ [clear_highlights]
+      ✗ [update P {"state":{"running":true}}]
+
+[135s] BEAT 4 "Relative to what?"  [13 sentences, avg 12.3 words, max 17, key 1]
+    But hold on: standing on Earth, you never see the moon turn at all.
+    So does it spin or not?
+    Relative to what?
+    Let's treat this page as the distant stars, and freeze the spinning moon at the start.
+    [update P {"state":{"spin":"locked","running":false,"angle":0}}]
+    [highlight P[3]]
+    Right now the shaded face points left, toward Earth and toward the left edge of the page.
+    [update P {"state":{"running":false,"angle":90}}]
+    A quarter of the way round, it still faces Earth, but against the page it points down.
+    ★ Seen from the stars, the moon is turning.
+    [clear_highlights]
+    From Earth that turn is invisible, because the face keeps tracking you.
+    Notice what I'm not saying: neither view is wrong, they just measure from different places.
+    [pin "Spin depends on the viewpoint" :: Against the stars the moon turns; seen from Earth its face never moves.]
+    Before it moves again, pause and predict the rest of the lap.
+    [CHECK choice: Over one full orbit, how many times does the shaded face turn all the way around, measured against the page? {Zero times | Once | Twice} expected ["Once","once","one"]]
+      ✓ [update P {"state":{"running":true,"speed":30}}]
+      ✓ [highlight P[3]]
+      ✓ Right: left, down, right, up, and back, one full turn every lap.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"running":true,"speed":30}}]
+      ✗ [highlight P[3]]
+      ✗ Good guess, but watch the shaded half: left, down, right, up, and back to left.
+      ✗ That is exactly one turn against the page for every lap around Earth.
+      ✗ [clear_highlights]
+
+[135s] BEAT 5 "Why the spin matches"  [15 sentences, avg 13.0 words, max 17, key 1]
+    But why exactly once per lap?
+    That sounds like a suspicious coincidence, doesn't it?
+    Let's zoom in on Earth and the moon on this small diagram.
+    [update S {"items":[{"id":"earth","type":"circle","cx":90,"cy":150,"r":40,"label":"Earth"},{"id":"axis","type":"line","x1":90,"y1":150,"x2":400,"y2":150,"dashed":true},{"id":"moon","type":"path","d":"M 280 150 A 40 28 0 1 0 360 150 A 40 28 0 1 0 280 150 Z"},{"id":"pull","type":"arrow","x1":280,"y1":150,"x2":140,"y2":150,"role":"force","label":"Earth's pull"},{"id":"txt","type":"text","x":20,"y":285,"text":"Earth stretches the moon into a slight bulge","size":13}]}]
+    [highlight S[2]]
+    Earth pulls hardest on the near side, so the moon stretches into this slight egg shape.
+    The bulge is tiny, but it gives Earth something to grab.
+    [clear_highlights]
+    [update S {"items":[{"id":"earth","type":"circle","cx":90,"cy":150,"r":40,"label":"Earth"},{"id":"axis","type":"line","x1":90,"y1":150,"x2":400,"y2":150,"dashed":true},{"id":"moon","type":"path","d":"M 285.4 130 A 40 28 30 1 0 354.6 170 A 40 28 30 1 0 285.4 130 Z"},{"id":"pull","type":"arrow","x1":285,"y1":130,"x2":140,"y2":150,"role":"force","label":"Earth's pull"},{"id":"txt","type":"text","x":20,"y":285,"text":"young moon spins fast: the bulge runs ahead","size":13}]}]
+    Long ago the moon spun faster, so its bulge got carried ahead of this dashed line.
+    [highlight S[3]]
+    This green pull tugs the bulge back, and every tug slows the spin a little.
+    [clear_highlights]
+    [update S {"items":[{"id":"earth","type":"circle","cx":90,"cy":150,"r":40,"label":"Earth"},{"id":"axis","type":"line","x1":90,"y1":150,"x2":400,"y2":150,"dashed":true},{"id":"moon","type":"path","d":"M 280 150 A 40 28 0 1 0 360 150 A 40 28 0 1 0 280 150 Z"},{"id":"pull","type":"arrow","x1":280,"y1":150,"x2":140,"y2":150,"role":"force","label":"Earth's pull"},{"id":"txt","type":"text","x":20,"y":285,"text":"spin matches orbit: the bulge stays in line","size":13}]}]
+    ★ Tides brake the spin until it matches the orbit.
+    Once the bulge stays on the line, there is no sideways tug left to change anything.
+    This is called tidal locking, because the tides lock the spin in place.
+    Notice what I'm not saying: the moon never stopped spinning, it stopped spinning relative to Earth.
+    [pin "Tidal locking" :: Earth's pull on the moon's bulge braked its spin until one turn matched one orbit.]
+    Now flip it around, and decide before I draw it.
+    [CHECK choice: Suppose the moon spun too slowly, so its bulge lagged behind the line to Earth. What would Earth's tug do to the spin? {Speed the spin up | Slow it down further | Nothing at all} expected ["Speed the spin up","speed it up","speed up"]]
+      ✓ [update S {"items":[{"id":"earth","type":"circle","cx":90,"cy":150,"r":40,"label":"Earth"},{"id":"axis","type":"line","x1":90,"y1":150,"x2":400,"y2":150,"dashed":true},{"id":"moon","type":"path","d":"M 285.4 170 A 40 28 -30 1 0 354.6 130 A 40 28 -30 1 0 285.4 170 Z"},{"id":"pull","type":"arrow","x1":285,"y1":170,"x2":140,"y2":150,"role":"force","label":"Earth's pull"},{"id":"txt","type":"text","x":20,"y":285,"text":"spin too slow: the bulge lags behind","size":13}]}]
+      ✓ Right, the pull drags the lagging bulge forward, spinning the moon up until it matches.
+      ✗ [update S {"items":[{"id":"earth","type":"circle","cx":90,"cy":150,"r":40,"label":"Earth"},{"id":"axis","type":"line","x1":90,"y1":150,"x2":400,"y2":150,"dashed":true},{"id":"moon","type":"path","d":"M 285.4 170 A 40 28 -30 1 0 354.6 130 A 40 28 -30 1 0 285.4 170 Z"},{"id":"pull","type":"arrow","x1":285,"y1":170,"x2":140,"y2":150,"role":"force","label":"Earth's pull"},{"id":"txt","type":"text","x":20,"y":285,"text":"spin too slow: the bulge lags behind","size":13}]}]
+      ✗ [highlight S[3]]
+      ✗ Good guess, but look: the pull now drags the lagging bulge forward, toward the line.
+      ✗ So either way, too fast or too slow, the spin gets pushed toward one turn per orbit.
+      ✗ [clear_highlights]
+
+[135s] BEAT 6 "Back to the hook"  [13 sentences, avg 12.6 words, max 16, key 1]
+    Let's go back to the claim we started with.
+    [clear S]
+    Most people guess the moon never spins, so its back stays hidden.
+    [update P {"state":{"spin":"none","running":true,"speed":30}}]
+    But a moon that never spins shows us every side, like this one does.
+    [update P {"state":{"spin":"locked","running":true,"speed":30}}]
+    [highlight P[3]]
+    ★ The back stays hidden because the moon spins, exactly once per lap.
+    So why did it feel like the moon doesn't spin?
+    You only ever watch from Earth, the one viewpoint where that spin cancels out.
+    [clear_highlights]
+    We write that as: spin period equals orbit period, about twenty-seven days.
+    [pin "Locked spin" :: One turn on its axis takes exactly as long as one trip around Earth.]
+    Now you can predict this for any tidally locked moon, not just ours.
+    And I think that's really neat: the hidden side is hidden by a spin.
+    Jupiter's moon Io is tidally locked too, so make one last prediction.
+    [CHECK choice: Io is tidally locked to Jupiter. Measured against the distant stars, how often does Io spin? {Never | Once per orbit | Twice per orbit} expected ["Once per orbit","once","once per orbit"]]
+      ✓ [update P {"state":{"spin":"locked","running":true,"speed":60}}]
+      ✓ Right, once per lap like our moon, so Io hides a far side from Jupiter too.
+      ✗ [update P {"state":{"spin":"locked","running":true,"speed":60}}]
+      ✗ [highlight P[3]]
+      ✗ Watch the shaded half: against the page it turns once every lap.
+      ✗ Locked means exactly one spin per orbit, for Io just as for our moon.
+      ✗ [clear_highlights]
+
+[135s] lesson.complete 

@@ -82,7 +82,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const started = performance.now();
-      const clip = await tts.speak(parsed.data.text, parsed.data.voiceId);
+      const clip = await tts.speak(parsed.data.text, parsed.data.voiceId, parsed.data.speed);
       res.setHeader("x-tts-ms", String(Math.round(performance.now() - started)));
       json(res, 200, clip);
       return;

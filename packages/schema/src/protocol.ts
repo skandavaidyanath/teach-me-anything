@@ -158,7 +158,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 
-export const TtsRequestSchema = z.object({ text: z.string().min(1), voiceId: z.string().optional() });
+/** `speed` is Cartesia's generation_config.speed: 0.6 to 1.5, 1 is normal; the model treats it as guidance. */
+export const TtsRequestSchema = z.object({ text: z.string().min(1), voiceId: z.string().optional(), speed: z.number().min(0.6).max(1.5).optional() });
 export const TtsWordSchema = z.object({ text: z.string(), start: z.number(), end: z.number() });
 export const TtsResponseSchema = z.object({
   mime: z.string(),

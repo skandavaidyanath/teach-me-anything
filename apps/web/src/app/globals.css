@@ -65,6 +65,13 @@ body {
   color: var(--color-ink);
 }
 
+/* The one sentence in a beat that carries the idea: spoken slowly, set apart. */
+.caption-key {
+  font-weight: 700;
+  padding-left: 14px;
+  box-shadow: inset 5px 0 0 var(--color-marker);
+}
+
 /* A cell that is being compared, marked by the tutor's highlighter. */
 .cell {
   transition:

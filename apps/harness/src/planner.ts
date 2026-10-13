@@ -16,20 +16,23 @@ import { config } from "./env";
 export type PlannerStreamer = (
   system: string,
   user: string,
-  effort: "low" | "high",
+  effort: "low" | "medium" | "high",
 ) => AsyncIterable<{ kind: "text"; text: string } | { kind: "final"; model: string | null; inputTokens: number | null; outputTokens: number | null; refusal: boolean }>;
+
+export type SayStats = { says: number; avgWords: number; maxWords: number; keys: number };
 
 export type PlannerEvent =
   | { type: "header"; header: LessonHeader }
   | { type: "diagnostic"; message: string; raw: string }
-  | { type: "beat"; index: number; beat: Beat; issues: string[] }
+  | { type: "beat"; index: number; beat: Beat; issues: string[]; stats?: SayStats }
   | { type: "outline"; fromIndex: number; outline: OutlineEntry[] }
   | { type: "error"; message: string }
   | { type: "done"; model: string | null; inputTokens: number | null; outputTokens: number | null };
 
 const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 parts called beats. Structural rules:
 - One idea per beat. Every beat ends with exactly one check, and the check is the last op.
-- One sentence per say op, short and plain, written to be spoken aloud. No markdown. Spell out symbols the way a person would say them.
+- One sentence per say op, at most eighteen words, plain, written to be spoken aloud. A thought that needs more words is two say ops. No markdown. Spell out symbols the way a person would say them.
+- Exactly one say op per beat has "key": true: the sentence that carries the beat's idea, under twelve words. It is spoken slowly with a silence after it and set apart in the caption, so it comes right after the reveal it explains, never first.
 - Every say op refers to something the learner can see. Highlight what you are talking about. When a value moves, use a move op so it travels. Use the derivation element for step-by-step math, the split_tree for halving, rows for lists, a scene for a still diagram, and a component for anything that moves, changes viewpoint, or has parts that interact.
 - In demo mode, write one component for the lesson (a simulation or mechanism with state), introduce it in beat 2, and drive it with update ops in later beats rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. In write-along mode, the lines are a derivation element shown with revealed:1 and revealed one more line per update as it is spoken. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
 - The reaction to a check shows the answer on the board, with an update or a highlight, before the sentence that explains it.
@@ -208,6 +211,93 @@ function collectComponents(beats: Beat[]): Map<string, Component> {
   return out;
 }
 
+const SENTENCE_END = /(?<=[.!?]["')\]]*)\s+(?=\S)/;
+const wordCount = (t: string) => t.trim().split(/\s+/).filter(Boolean).length;
+
+/** Split any say op that holds several sentences into one op per sentence; the key mark stays on the first. */
+export function splitSays(ops: Op[]): Op[] {
+  const out: Op[] = [];
+  for (const op of ops) {
+    if (op.op === "check") {
+      out.push({ ...op, onCorrect: splitSays(op.onCorrect ?? []), onIncorrect: splitSays(op.onIncorrect ?? []) });
+      continue;
+    }
+    if (op.op !== "say") {
+      out.push(op);
+      continue;
+    }
+    const parts = op.text.split(SENTENCE_END).map((p) => p.trim()).filter(Boolean);
+    if (parts.length < 2 || parts.some((p) => wordCount(p) < 2)) {
+      out.push(op);
+      continue;
+    }
+    parts.forEach((text, i) => {
+      const piece: Op = { ...op, id: i === 0 ? op.id : `${op.id}_${i + 1}`, text };
+      if (i > 0 && piece.op === "say") delete piece.key;
+      out.push(piece);
+    });
+  }
+  return out;
+}
+
+function allSays(ops: Op[]): Array<Extract<Op, { op: "say" }>> {
+  const out: Array<Extract<Op, { op: "say" }>> = [];
+  for (const op of ops) {
+    if (op.op === "say") out.push(op);
+    if (op.op === "check") out.push(...allSays(op.onCorrect ?? []), ...allSays(op.onIncorrect ?? []));
+  }
+  return out;
+}
+
+export function sayStats(ops: Op[]): SayStats {
+  const says = allSays(ops);
+  const counts = says.map((s) => wordCount(s.text));
+  return {
+    says: says.length,
+    avgWords: counts.length ? Math.round((counts.reduce((a, b) => a + b, 0) / counts.length) * 10) / 10 : 0,
+    maxWords: counts.length ? Math.max(...counts) : 0,
+    keys: ops.filter((o) => o.op === "say" && o.key).length,
+  };
+}
+
+/** Sentences this long are hard to follow when spoken; a short call splits them, same meaning, same order. */
+const LONG_SENTENCE_WORDS = 26;
+
+export async function shortenLongSays(ops: Op[], streamer: PlannerStreamer): Promise<{ ops: Op[]; shortened: number }> {
+  const long = allSays(ops).filter((s) => wordCount(s.text) > LONG_SENTENCE_WORDS);
+  if (long.length === 0) return { ops, shortened: 0 };
+  const user = `These sentences will be spoken aloud in a lesson and are too long to follow. Rewrite each as two or three short spoken sentences of at most fifteen words, same meaning, same order, nothing added. Return one line per input, numbered the same way, with the sentences separated by spaces.\n\n${long.map((s, i) => `${i + 1}. ${s.text}`).join("\n")}`;
+  let buffer = "";
+  try {
+    for await (const piece of streamer("You split long spoken sentences into short ones.", user, "low")) if (piece.kind === "text") buffer += piece.text;
+  } catch {
+    return { ops, shortened: 0 };
+  }
+  const rewrites = new Map<string, string[]>();
+  for (const line of buffer.split("\n")) {
+    const m = /^\s*(\d+)[.)]\s*(.+)$/.exec(line);
+    if (!m) continue;
+    const src = long[Number(m[1]) - 1];
+    if (!src) continue;
+    const parts = m[2]!.trim().split(SENTENCE_END).map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 2 && parts.every((p) => wordCount(p) <= LONG_SENTENCE_WORDS)) rewrites.set(src.id, parts);
+  }
+  if (rewrites.size === 0) return { ops, shortened: 0 };
+  const apply = (list: Op[]): Op[] =>
+    list.flatMap((op): Op[] => {
+      if (op.op === "check") return [{ ...op, onCorrect: apply(op.onCorrect ?? []), onIncorrect: apply(op.onIncorrect ?? []) }];
+      if (op.op !== "say") return [op];
+      const parts = rewrites.get(op.id);
+      if (!parts) return [op];
+      return parts.map((text, i) => {
+        const piece: Op = { ...op, id: i === 0 ? op.id : `${op.id}_s${i + 1}`, text };
+        if (i > 0 && piece.op === "say") delete piece.key;
+        return piece;
+      });
+    });
+  return { ops: apply(ops), shortened: rewrites.size };
+}
+
 function collectShown(ops: Op[], into: Set<string>): void {
   for (const op of ops) {
     if (op.op === "show") into.add(op.element.id);
@@ -235,7 +325,7 @@ function refsKnown(op: Op, known: Set<string>): boolean {
  * Make a beat safe to play: unique op ids, exactly one check at the end,
  * no references to elements never shown. Returns the issues it fixed.
  */
-export function normalizeBeat(raw: unknown, index: number, knownBefore: Set<string>, outlineId: string | undefined): { beat: Beat; issues: string[] } | { beat: null; errors: string[] } {
+export function normalizeBeat(raw: unknown, index: number, knownBefore: Set<string>, outlineId: string | undefined): { beat: Beat; issues: string[]; stats: SayStats } | { beat: null; errors: string[] } {
   const parsed = BeatSchema.safeParse(raw);
   if (!parsed.success) return { beat: null, errors: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) };
   const issues: string[] = [];
@@ -262,6 +352,9 @@ export function normalizeBeat(raw: unknown, index: number, knownBefore: Set<stri
     });
   let ops = fixIds(beat.ops);
 
+  // One sentence per say op, so pacing and captions work per sentence.
+  ops = splitSays(ops);
+
   // References must point at shown elements, in play order.
   const filter = (list: Op[]): Op[] => {
     const out: Op[] = [];
@@ -279,6 +372,17 @@ export function normalizeBeat(raw: unknown, index: number, knownBefore: Set<stri
   };
   ops = filter(ops);
 
+  // One key sentence per beat: the first one marked stays, the rest become ordinary.
+  let keysSeen = 0;
+  ops = ops.map((o) => {
+    if (o.op !== "say" || !o.key) return o;
+    keysSeen++;
+    if (keysSeen === 1) return o;
+    const { key: _k, ...rest } = o;
+    return rest as Op;
+  });
+  if (keysSeen > 1) issues.push(`${keysSeen} key sentences; kept the first`);
+
   const checks = ops.filter((o) => o.op === "check");
   if (checks.length === 0) {
     issues.push("no check; appended an ungraded prompt");
@@ -288,7 +392,7 @@ export function normalizeBeat(raw: unknown, index: number, knownBefore: Set<stri
     const last = checks[checks.length - 1]!;
     ops = [...ops.filter((o) => o.op !== "check"), last];
   }
-  return { beat: { ...beat, ops }, issues };
+  return { beat: { ...beat, ops }, issues, stats: sayStats(ops) };
 }
 
 function headerFromBlock(block: z.infer<typeof HeaderBlockSchema>, id: string): LessonHeader {
@@ -309,7 +413,47 @@ function headerFromBlock(block: z.infer<typeof HeaderBlockSchema>, id: string): 
 
 type StreamItem = { type: BlockType; body: string } | { type: "final"; model: string | null; inputTokens: number | null; outputTokens: number | null; refusal: boolean };
 
-async function* streamBlocks(streamer: PlannerStreamer, system: string, user: string, effort: "low" | "high"): AsyncGenerator<StreamItem> {
+/** Start consuming a stream now and hand its items over as they arrive, so a call can run while another is processed. */
+function eager<T>(source: AsyncIterable<T>): AsyncIterable<T> {
+  const buffer: T[] = [];
+  let done = false;
+  let error: unknown = null;
+  let wake: (() => void) | null = null;
+  const notify = () => {
+    wake?.();
+    wake = null;
+  };
+  void (async () => {
+    try {
+      for await (const item of source) {
+        buffer.push(item);
+        notify();
+      }
+    } catch (e) {
+      error = e;
+    } finally {
+      done = true;
+      notify();
+    }
+  })();
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (;;) {
+        if (buffer.length > 0) {
+          yield buffer.shift()!;
+          continue;
+        }
+        if (done) {
+          if (error) throw error;
+          return;
+        }
+        await new Promise<void>((r) => (wake = r));
+      }
+    },
+  };
+}
+
+async function* streamBlocks(streamer: PlannerStreamer, system: string, user: string, effort: "low" | "medium" | "high"): AsyncGenerator<StreamItem> {
   let buffer = "";
   for await (const piece of streamer(system, user, effort)) {
     if (piece.kind === "text") {
@@ -368,8 +512,12 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       yield { type: "error", message: `beat ${index + 1} could not be repaired: ${(result as { errors: string[] }).errors.join("; ")}` };
       return;
     }
-    collectShown(result.beat.ops, known);
-    yield { type: "beat", index, beat: result.beat, issues: [...attached.dropped.map((id) => `dropped show of component ${id}: no code block`), ...result.issues] };
+    const shortened = await shortenLongSays(result.beat.ops, streamer);
+    const beat = shortened.shortened > 0 ? { ...result.beat, ops: shortened.ops } : result.beat;
+    collectShown(beat.ops, known);
+    const issues = [...attached.dropped.map((id) => `dropped show of component ${id}: no code block`), ...result.issues];
+    if (shortened.shortened > 0) issues.push(`split ${shortened.shortened} long sentence${shortened.shortened === 1 ? "" : "s"} with a second call`);
+    yield { type: "beat", index, beat, issues, stats: sayStats(beat.ops) };
   };
 
   const handleComponent = function* (body: string): Generator<PlannerEvent> {
@@ -427,10 +575,10 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       }
       return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only, following the outline. ${header!.outline[0]!.id} is being written separately with instant elements only, so do not reference its elements; start this beat with what it needs on the board. If the lesson calls for a figure written as code, write its COMPONENT block now and show it in this beat.`;
     };
-    const collect = async (ask: string): Promise<StreamItem[]> => {
+    const collect = async (ask: string, effort: "low" | "medium" | "high" = "low"): Promise<StreamItem[]> => {
       const out: StreamItem[] = [];
       try {
-        for await (const item of streamBlocks(streamer, PLANNER_SYSTEM, ask, "low")) out.push(item);
+        for await (const item of streamBlocks(streamer, PLANNER_SYSTEM, ask, effort)) out.push(item);
       } catch {
         // A failed second beat is written again by the slow tier.
       }
@@ -476,26 +624,40 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
     }
 
     if (total > fastBeats.length) {
-      // Slow tier: the rest at high effort, while the first beats play.
+      // Slow tier. Beat 3 alone at medium effort, started the moment beat 2 is done, so it lands
+      // before beat 2 runs out; the rest at high effort in parallel, processed after beat 3 so
+      // element references resolve in order.
       const written = fastBeats.map((b) => `===BEAT===\n${JSON.stringify(b)}\n===END===`).join("\n");
-      const rest = `Topic: ${topic}\n\nHere is the header and the beats you already wrote:\n${headerBlock}\n${written}\n\nNow write BEAT blocks for ${header.outline
-        .slice(fastBeats.length)
-        .map((b) => b.id)
-        .join(", ")}, in order, one block each, following the outline. Elements shown in earlier beats stay on the board unless you clear them.`;
+      const third = header.outline[fastBeats.length]!;
+      const restIds = header.outline.slice(fastBeats.length + 1).map((b) => b.id);
+      const askThird = `Topic: ${topic}\n\nHere is the header and the beats you already wrote:\n${headerBlock}\n${written}\n\nWrite the BEAT block for ${third.id} only, following the outline. Elements shown in earlier beats stay on the board unless you clear them; drive the figure with update ops rather than adding new ones.`;
+      const askRest =
+        restIds.length > 0
+          ? `Topic: ${topic}\n\nHere is the header and the beats you already wrote:\n${headerBlock}\n${written}\n\n${third.id} is being written separately and continues straight from ${fastBeats[fastBeats.length - 1]!.id} without adding new elements. Now write BEAT blocks for ${restIds.join(", ")}, in order, one block each, following the outline. Elements shown in earlier beats stay on the board unless you clear them.`
+          : null;
+      const rest = askRest ? eager(streamBlocks(streamer, PLANNER_SYSTEM, askRest, "high")) : null;
       let index = fastBeats.length;
-      for await (const block of streamBlocks(streamer, PLANNER_SYSTEM, rest, "high")) {
-        if (block.type === "final") {
-          meta = { model: block.model, inputTokens: (meta.inputTokens ?? 0) + (block.inputTokens ?? 0), outputTokens: (meta.outputTokens ?? 0) + (block.outputTokens ?? 0) };
-          continue;
+      let gotThird = false;
+      for (const item of await collect(askThird, "medium")) {
+        if (gotThird && item.type === "BEAT") continue;
+        if (yield* handleFast(item, index)) gotThird = true;
+      }
+      if (gotThird) index++;
+      if (rest) {
+        for await (const item of rest) {
+          if (item.type === "final") {
+            meta = { model: item.model, inputTokens: (meta.inputTokens ?? 0) + (item.inputTokens ?? 0), outputTokens: (meta.outputTokens ?? 0) + (item.outputTokens ?? 0) };
+            continue;
+          }
+          if (item.type === "COMPONENT") {
+            yield* handleComponent(item.body);
+            continue;
+          }
+          if (item.type !== "BEAT") continue;
+          if (index >= total) break;
+          yield* handleBeat(item.body, index);
+          index++;
         }
-        if (block.type === "COMPONENT") {
-          yield* handleComponent(block.body);
-          continue;
-        }
-        if (block.type !== "BEAT") continue;
-        if (index >= total) break;
-        yield* handleBeat(block.body, index);
-        index++;
       }
     }
     yield { type: "done", ...meta };
@@ -550,8 +712,10 @@ export async function* replanLesson(
         yield { type: "error", message: `replan beat ${index + 1} could not be repaired` };
         continue;
       }
-      collectShown(result.beat.ops, known);
-      yield { type: "beat", index, beat: result.beat, issues: result.issues };
+      const shortened = await shortenLongSays(result.beat.ops, streamer);
+      const beat = shortened.shortened > 0 ? { ...result.beat, ops: shortened.ops } : result.beat;
+      collectShown(beat.ops, known);
+      yield { type: "beat", index, beat, issues: result.issues, stats: sayStats(beat.ops) };
       index++;
     }
     yield { type: "done", model: null, inputTokens: null, outputTokens: null };

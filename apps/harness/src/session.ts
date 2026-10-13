@@ -155,7 +155,7 @@ export class Session {
         this.send({ type: "lesson.header", header: ev.header, source: "planner" });
       } else if (ev.type === "beat") {
         this.beats[ev.index] = ev.beat;
-        this.log.write("planner", { phase: "beat", index: ev.index, ms: Math.round(performance.now() - started), issues: ev.issues, ops: ev.beat.ops.length });
+        this.log.write("planner", { phase: "beat", index: ev.index, ms: Math.round(performance.now() - started), issues: ev.issues, ops: ev.beat.ops.length, stats: ev.stats });
         this.send({ type: "lesson.beat", index: ev.index, beat: ev.beat });
       } else if (ev.type === "diagnostic") {
         this.log.write("planner_diagnostic", { message: ev.message, raw: ev.raw });

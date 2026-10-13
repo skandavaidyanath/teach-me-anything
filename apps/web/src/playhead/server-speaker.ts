@@ -1,5 +1,5 @@
 import { TtsResponseSchema, type TtsWord } from "@tma/schema";
-import type { SpeakHandle, SpeakOutcome, Speaker } from "./speaker";
+import { speedFor, type Pace, type SpeakHandle, type SpeakOptions, type SpeakOutcome, type Speaker, type SpeechItem } from "./speaker";
 
 export type TtsStats = { text: string; fetchMs: number; cached: boolean; synthMs: number };
 
@@ -56,12 +56,13 @@ export class ServerSpeaker implements Speaker {
     return this.ctx;
   }
 
-  prefetch(texts: string[]): void {
-    for (const t of texts) this.load(t).catch(() => {});
+  prefetch(items: SpeechItem[]): void {
+    for (const item of items) this.load(item.text, item.pace).catch(() => {});
   }
 
-  private load(text: string): Promise<Clip> {
-    const key = `${this.voiceId}|${text}`;
+  private load(text: string, pace?: Pace): Promise<Clip> {
+    const speed = speedFor(pace);
+    const key = `${this.voiceId}|${speed}|${text}`;
     const hit = this.cache.get(key);
     if (hit) return hit;
     const job = (async (): Promise<Clip> => {
@@ -69,7 +70,7 @@ export class ServerSpeaker implements Speaker {
       const res = await fetch(`${this.baseUrl}/tts`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, voiceId: this.voiceId }),
+        body: JSON.stringify({ text, voiceId: this.voiceId, ...(speed !== 1 ? { speed } : {}) }),
       });
       if (!res.ok) throw new Error(`tts ${res.status}`);
       const data = TtsResponseSchema.parse(await res.json());
@@ -83,7 +84,7 @@ export class ServerSpeaker implements Speaker {
     return job;
   }
 
-  speak(text: string, onProgress: (chars: number) => void): SpeakHandle {
+  speak(text: string, onProgress: (chars: number) => void, opts?: SpeakOptions): SpeakHandle {
     let cancelled = false;
     let source: AudioBufferSourceNode | null = null;
     let raf = 0;
@@ -94,10 +95,10 @@ export class ServerSpeaker implements Speaker {
       void (async () => {
         let clip: Clip;
         try {
-          clip = await this.load(text);
+          clip = await this.load(text, opts?.pace);
         } catch {
           // Keep the lesson moving at reading speed if a sentence fails to synthesize.
-          const ms = Math.max(900, (text.split(/\s+/).length / 165) * 60_000);
+          const ms = Math.max(900, (text.split(/\s+/).length / (165 * speedFor(opts?.pace))) * 60_000);
           const t0 = performance.now();
           const tick = () => {
             if (cancelled) return resolve("cancelled");

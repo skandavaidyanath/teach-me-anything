@@ -1,0 +1,154 @@
+[  9s] HEADER "A fridge doesn't make cold, it moves heat" style=demo topic=how a refrigerator makes cold
+      calibration: Quick check before we start: what do you think a fridge mostly does? {It makes cold and pumps it in | It moves heat from inside to outside | I'm not sure}
+      - b1 There is no cold to make: A fridge adds no cold; it carries heat out of the box, which is why the coils on its back feel warm.
+      - b2 Evaporating fluid drinks heat: A liquid that boils absorbs heat from its surroundings, so refrigerant boiling at minus twenty five degrees in the inside coils pulls heat out of the food.
+      - b3 Squeeze it and it gets hot: The compressor squeezes the cold refrigerant gas until it is hotter than the kitchen, so heat can flow out of it.
+      - b4 Dump the heat, then let it expand: The hot gas gives its heat to the room in the back coils and turns back into liquid, then an expansion valve drops its pressure so it is cold again.
+      - b5 Why an open fridge heats the kitchen: The fridge dumps the heat it moves plus the compressor's own work, so leaving the door open warms the room overall.
+
+[ 38s] BEAT 1 "There is no cold to make"  [10 sentences, avg 14.4 words, max 18, key 1]
+    [show scene S]
+    This box is a fridge, four degrees inside, sitting in a kitchen at twenty one.
+    [highlight S[1]]
+    Here is a claim that sounds wrong: this fridge makes no cold at all.
+    Cold is not a substance you can pump in; it is only less heat.
+    [clear_highlights]
+    So to get this inside down to four degrees, let's take heat out.
+    [update S {"items":[{"id":"box","type":"path","d":"M 120 50 L 270 50 L 270 270 L 120 270 Z","label":"the fridge"},{"id":"inside","type":"text","x":145,"y":160,"text":"inside: 4 degrees","size":14},{"id":"coils","type":"path","d":"M 285 70 L 300 90 L 285 110 L 300 130 L 285 150 L 300 170 L 285 190 L 300 210 L 285 230 L 300 250","label":"back coils"},{"id":"coilsLabel","type":"text","x":278,"y":288,"text":"back coils","size":13},{"id":"kitchen","type":"text","x":300,"y":30,"text":"kitchen: 21 degrees","size":14},{"id":"heatIn","type":"arrow","x1":160,"y1":200,"x2":285,"y2":200,"role":"neutral","label":"heat"}]}]
+    [highlight S[5]]
+    ★ A fridge moves heat out; it never adds cold.
+    [clear_highlights]
+    [pin "Fridges move heat" :: There is no cold to add, so a fridge cools its inside by carrying heat out.]
+    [highlight S[2]]
+    That heat has to go somewhere, and these coils on the back are where it ends up.
+    Before we touch them, pause and decide: what do these coils feel like?
+    [CHECK choice: You put your hand on the coils behind a running fridge. They feel… {Warm | Cold | Room temperature} expected ["Warm","warm"]]
+      ✓ [update S {"items":[{"id":"box","type":"path","d":"M 120 50 L 270 50 L 270 270 L 120 270 Z","label":"the fridge"},{"id":"inside","type":"text","x":145,"y":160,"text":"inside: 4 degrees","size":14},{"id":"coils","type":"path","d":"M 285 70 L 300 90 L 285 110 L 300 130 L 285 150 L 300 170 L 285 190 L 300 210 L 285 230 L 300 250","label":"back coils"},{"id":"coilsLabel","type":"text","x":278,"y":288,"text":"back coils","size":13},{"id":"kitchen","type":"text","x":300,"y":30,"text":"kitchen: 21 degrees","size":14},{"id":"heatIn","type":"arrow","x1":160,"y1":200,"x2":285,"y2":200,"role":"neutral","label":"heat"},{"id":"heatOut","type":"arrow","x1":305,"y1":150,"x2":430,"y2":150,"role":"neutral","label":"heat into the kitchen"}]}]
+      ✓ Warm, because the heat taken from your food pours out of them into the kitchen.
+      ✓ [clear_highlights]
+      ✗ [update S {"items":[{"id":"box","type":"path","d":"M 120 50 L 270 50 L 270 270 L 120 270 Z","label":"the fridge"},{"id":"inside","type":"text","x":145,"y":160,"text":"inside: 4 degrees","size":14},{"id":"coils","type":"path","d":"M 285 70 L 300 90 L 285 110 L 300 130 L 285 150 L 300 170 L 285 190 L 300 210 L 285 230 L 300 250","label":"back coils"},{"id":"coilsLabel","type":"text","x":278,"y":288,"text":"back coils","size":13},{"id":"kitchen","type":"text","x":300,"y":30,"text":"kitchen: 21 degrees","size":14},{"id":"heatIn","type":"arrow","x1":160,"y1":200,"x2":285,"y2":200,"role":"neutral","label":"heat"},{"id":"heatOut","type":"arrow","x1":305,"y1":150,"x2":430,"y2":150,"role":"neutral","label":"heat into the kitchen"}]}]
+      ✗ [highlight S[5] S[6]]
+      ✗ That is a fair guess, but follow the arrows: the heat from inside ends up in these coils.
+      ✗ So they are warm, warmer than the kitchen, and that heat spills out into the room.
+      ✗ [clear_highlights]
+
+[ 68s] BEAT 2 "Evaporating fluid drinks heat"  [12 sentences, avg 12.8 words, max 15, key 1]
+    [clear]
+    So if heat leaves the box, what grabs it in the first place?
+    [show component P "The refrigerant loop" [63 lines of code; state {"reveal":1,"running":true,"showHeat":false}; parts ["box","food","evapCoil","heatIn","readout","compressor","condCoil","heatOut","valve"]]]
+    [highlight P[1]]
+    This is the inside of a fridge, with food sitting at four degrees.
+    [highlight P[2]]
+    This pipe right here is the inside coil, and it carries a fluid called refrigerant.
+    Refrigerant boils at minus twenty five degrees, so in this coil it is boiling.
+    [clear_highlights]
+    Watch the dots: they enter solid, as liquid, and leave hollow, as gas.
+    [update P {"state":{"showHeat":true}}]
+    [highlight P[3]]
+    These wavy arrows are heat, flowing up from the warm food into the coil.
+    ★ Boiling liquid soaks up heat from everything around it.
+    [clear_highlights]
+    [pin "Boiling drinks heat" :: Refrigerant boiling at minus twenty five degrees in the inside coil pulls heat out of the food.]
+    Here is something to predict before we go on.
+    The coil keeps taking heat from food that is warmer than it is.
+    [CHECK choice: While it soaks up heat, what does the boiling refrigerant's temperature do? {Climbs toward four degrees | Stays at minus twenty five | Drops even lower} expected ["Stays at minus twenty five","stays the same","minus twenty five"]]
+      ✓ [highlight P[4]]
+      ✓ Right, the heat goes into turning liquid to gas, so the coil stays cold.
+      ✓ [clear_highlights]
+      ✗ [highlight P[4]]
+      ✗ Good guess, but look: it holds at minus twenty five the whole time.
+      ✗ The heat goes into turning liquid into gas, not into warming it up.
+      ✗ [clear_highlights]
+
+[102s] BEAT 3 "Squeeze it and it gets hot"  [11 sentences, avg 14.1 words, max 18, key 1]
+    [highlight P[4]]
+    But wait, that gas full of heat is at minus twenty five, and the kitchen is twenty one.
+    Heat never flows from something cold into something warmer, so how could it get out?
+    [clear_highlights]
+    [update P {"state":{"reveal":2}}]
+    [highlight P[5]]
+    This circle is the compressor, the part of your fridge that hums.
+    Watch the hollow gas dots run down this pipe and into it.
+    The compressor squeezes that gas into a much smaller space.
+    ★ Squeezing a gas makes it hotter.
+    Notice what I am not saying: it adds no heat from nowhere, it packs the same heat tighter.
+    [clear_highlights]
+    [pin "Squeezing heats the gas" :: The compressor squeezes the cold refrigerant gas until it is hotter than the kitchen.]
+    Before we connect the next pipe, pause and decide how hot that gas has to get.
+    [CHECK choice: For heat to leave the gas and flow into the kitchen, the compressor must make the gas… {Hotter than twenty one degrees | A bit warmer than minus twenty five | Colder than the food} expected ["Hotter than twenty one degrees","hotter than the kitchen","hotter than 21"]]
+      ✓ [update P {"state":{"reveal":3,"showHeat":true}}]
+      ✓ [highlight P[6] P[7]]
+      ✓ Right, it leaves at about fifty degrees, red now, so heat pours out into the room.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"reveal":3,"showHeat":true}}]
+      ✗ [highlight P[6] P[7]]
+      ✗ Good guess, but heat only flows from hotter to colder, so it must beat the kitchen.
+      ✗ Look at the red dots: squeezed to about fifty degrees, they shed heat into the room.
+      ✗ [clear_highlights]
+
+[143s] BEAT 4 "Dump the heat, then let it expand"  [14 sentences, avg 14.0 words, max 18, key 1]
+    But we wanted cold, so why would anyone make this gas hot on purpose?
+    [highlight P[5]]
+    Coming out of this compressor, it is around fifty degrees, far hotter than the kitchen.
+    [update P {"state":{"reveal":3,"showHeat":true,"running":true}}]
+    [clear_highlights]
+    [highlight P[6]]
+    It runs into this back coil, sitting out in the twenty one degree kitchen air.
+    [highlight P[7]]
+    Heat only flows from hot to cold, so it spills out of the coil into the room.
+    That is why we made the gas hotter than the kitchen first.
+    [clear_highlights]
+    [highlight P[6]]
+    Now watch the dots in this coil: hollow gas goes in, solid liquid comes out.
+    ★ Gas that gives up heat turns back into liquid.
+    [clear_highlights]
+    [pin "The back coil dumps heat" :: Gas hotter than the kitchen gives its heat to the room and condenses back into liquid.]
+    But this liquid leaves the coil warm, close to kitchen temperature.
+    Warm liquid can't take heat from four degree food, can it?
+    This open gap at the top is where a narrow valve goes, dropping the pressure.
+    Before we close the loop, pause and predict what that pressure drop does.
+    [CHECK choice: The warm liquid squeezes through a narrow valve into low pressure. Right after it, the liquid is… {Colder than the food, around minus twenty five | Still near kitchen temperature | Even hotter than before} expected ["Colder than the food, around minus twenty five","colder","minus twenty five"]]
+      ✓ [update P {"state":{"reveal":4}}]
+      ✓ [highlight P[8]]
+      ✓ Right, at low pressure it boils instantly, and that boiling chills it back to minus twenty five.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"reveal":4}}]
+      ✗ [highlight P[8]]
+      ✗ Good guess, but watch the dots turn blue the moment they pass this valve.
+      ✗ Low pressure lets it boil at once, and boiling pulls heat from itself, back to minus twenty five.
+      ✗ [clear_highlights]
+
+[153s] BEAT 5 "Why an open fridge heats the kitchen"  [15 sentences, avg 13.7 words, max 18, key 1]
+    [update P {"state":{"reveal":4,"showHeat":true,"running":true}}]
+    So here is a tempting idea for a hot day: open the fridge and cool the kitchen.
+    Would that actually work?
+    [show text_card C "Heat each second" :: taken from the food: 100 joules]
+    Let's count the heat this loop moves every second, on this card.
+    [highlight P[3]]
+    This inside coil pulls about one hundred joules out of the food each second.
+    [update C {"body":"taken from the food: 100 joules\ncompressor work: 40 joules"}]
+    [clear_highlights]
+    [highlight P[5]]
+    This compressor adds forty joules of its own work to squeeze the gas.
+    [update C {"body":"taken from the food: 100 joules\ncompressor work: 40 joules\ndumped at the back: 140 joules"}]
+    [clear_highlights]
+    [highlight P[7]]
+    So the back coil dumps both into the kitchen: one hundred and forty joules.
+    ★ The back dumps more heat than the inside gives up.
+    [clear_highlights]
+    [pin "Heat out beats heat in" :: Heat dumped at the back equals heat taken from inside plus the compressor's work.]
+    We write that as Q out equals Q in plus W, with W the compressor's work.
+    So the opening claim holds: no cold ever went in, heat only came out.
+    It felt like making cold because you only ever touch the inside, never the back.
+    Now you can follow every joule around this loop, and I think that's really neat.
+    So back to the open door: look at the card and predict.
+    [CHECK choice: You leave the fridge door wide open in a closed kitchen for an hour. The kitchen… {Warms up | Cools down | Stays the same} expected ["Warms up","warms","warmer"]]
+      ✓ [update C {"body":"taken from the food: 100 joules\ncompressor work: 40 joules\ndumped at the back: 140 joules\ndoor open: kitchen loses 100, gains 140\nnet: 40 joules warmer every second"}]
+      ✓ Right, the open front cools the room by one hundred, the back heats it by one hundred forty.
+      ✗ [update C {"body":"taken from the food: 100 joules\ncompressor work: 40 joules\ndumped at the back: 140 joules\ndoor open: kitchen loses 100, gains 140\nnet: 40 joules warmer every second"}]
+      ✗ [highlight P[3] P[7]]
+      ✗ Good guess, it does feel cold by the door, but the front only takes one hundred.
+      ✗ The back gives the same room one hundred forty, so the kitchen ends up warmer.
+      ✗ [clear_highlights]
+
+[153s] lesson.complete 

@@ -96,3 +96,16 @@ describe("ScriptParser: figures as code", () => {
     ]);
   });
 });
+
+describe("ScriptParser: pacing", () => {
+  it("@key and @slow mark a sentence's pace, and the sentence is spoken as written", () => {
+    const out = run(["Here it is.\n@key The pull points inward, always.\n@slow Watch the green arrow.\n@quick A small aside.\nkeep 2\n"]);
+    expect(out).toEqual([
+      { kind: "op", op: { op: "say", id: "r1.s1", text: "Here it is." } },
+      { kind: "op", op: { op: "say", id: "r1.s2", text: "The pull points inward, always.", key: true, pace: "slow" } },
+      { kind: "op", op: { op: "say", id: "r1.s3", text: "Watch the green arrow.", pace: "slow" } },
+      { kind: "op", op: { op: "say", id: "r1.s4", text: "A small aside.", pace: "quick" } },
+      { kind: "keep", line: 2 },
+    ]);
+  });
+});

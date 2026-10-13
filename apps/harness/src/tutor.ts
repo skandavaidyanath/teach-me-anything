@@ -56,6 +56,7 @@ Write back the script to play from here, one item per line:
 - "keep N" plays line N as written. Every ANCHOR line must appear as keep exactly once, in increasing order.
 - A plain sentence is new spoken wording. One sentence per line, short, plain spoken English. No markdown, lists, headings, or emoji.
 - Drawing directives (below), each placed before the sentences that talk about it.
+- "@key " at the start of a line marks the one sentence that carries the answer: it is spoken slowly, with a pause after, so keep it under twelve words. At most one per answer. Sentences are at most eighteen words; split anything longer.
 
 Teach with the board. The first line of an answer is a drawing: a @scene of the situation the learner asked about, an @update that changes a figure's state so it shows the point, or a @component when the thing has to move. Only when the question is purely about a fact or a meaning and there is nothing to draw, the first line is instead "@nodraw" followed by a short reason. A @highlight is not a drawing, and setting a figure's state to what it already is does not count. Never tell the learner to imagine or picture something: draw it, then talk about what is on the board. The board's figures are yours to use: highlight their parts, and change their state with @update (the state doc says what you can set).
 

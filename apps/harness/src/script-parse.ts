@@ -5,6 +5,7 @@ import { SceneItemSchema, type Element, type ElementRef, type Op, type SceneItem
  *
  *   keep 7                          play line 7 of the pending script as written
  *   plain text                      new spoken sentences (split at sentence ends)
+ *   @key The pull points inward.    the one sentence that carries the idea: spoken slowly, with a pause after
  *   @highlight A[0] B[0]            and the other drawing directives
  *   @component ID "Title" 600x360   a figure as code, on the lines up to @end
  *   @replan from=b3 reason=...      ask the Planner to rewrite from a beat
@@ -257,6 +258,16 @@ export class ScriptParser {
       return { kind: "op", op: { op: "move", id: `${this.idPrefix}.m${this.showCount}`, from, to } };
     }
     if (name === "nodraw") return { kind: "nodraw", reason: rest };
+    if (name === "key" || name === "slow" || name === "quick") {
+      const text = rest.replace(/^say\s*:?\s*/i, "").trim();
+      if (!text) return null;
+      this.sayCount++;
+      const op: Op = { op: "say", id: `${this.idPrefix}.s${this.sayCount}`, text };
+      if (name === "key") op.key = true;
+      if (name === "key" || name === "slow") op.pace = "slow";
+      if (name === "quick") op.pace = "quick";
+      return { kind: "op", op };
+    }
     if (name === "replan") {
       const fm = /from=([A-Za-z][\w-]*)/.exec(rest);
       const rm = /reason=(.*)$/.exec(rest);

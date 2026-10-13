@@ -19,7 +19,7 @@ type CartesiaMessage =
  * One connection per sentence is fine at this stage; a persistent connection
  * with contexts is an optimization for later.
  */
-export async function synthesizeCartesia(text: string, voiceId: string): Promise<{ pcm: Buffer; words: TtsWord[] }> {
+export async function synthesizeCartesia(text: string, voiceId: string, speed?: number): Promise<{ pcm: Buffer; words: TtsWord[] }> {
   const url = `wss://api.cartesia.ai/tts/websocket?cartesia_version=${config.cartesiaVersion}`;
   const ws = new WebSocket(url, { headers: { "X-API-Key": config.cartesiaApiKey } });
   const chunks: Buffer[] = [];
@@ -45,6 +45,7 @@ export async function synthesizeCartesia(text: string, voiceId: string): Promise
           output_format: { container: "raw", encoding: "pcm_s16le", sample_rate: SAMPLE_RATE },
           language: "en",
           add_timestamps: true,
+          ...(speed !== undefined && speed !== 1 ? { generation_config: { speed } } : {}),
         }),
       );
     });
@@ -105,7 +106,7 @@ export class TtsService {
   private readonly gate: Gate;
 
   constructor(
-    private readonly synth: (text: string, voiceId: string) => Promise<{ pcm: Buffer; words: TtsWord[] }> = synthesizeCartesia,
+    private readonly synth: (text: string, voiceId: string, speed?: number) => Promise<{ pcm: Buffer; words: TtsWord[] }> = synthesizeCartesia,
     diskDir = path.join(config.dataDir, "tts"),
     maxConcurrent = config.cartesiaConcurrency,
   ) {
@@ -114,11 +115,11 @@ export class TtsService {
     fs.mkdirSync(this.diskDir, { recursive: true });
   }
 
-  private async synthWithRetry(text: string, voiceId: string): Promise<{ pcm: Buffer; words: TtsWord[] }> {
+  private async synthWithRetry(text: string, voiceId: string, speed?: number): Promise<{ pcm: Buffer; words: TtsWord[] }> {
     let attempt = 0;
     for (;;) {
       try {
-        return await this.gate.run(() => this.synth(text, voiceId));
+        return await this.gate.run(() => this.synth(text, voiceId, speed));
       } catch (err) {
         if (!isRateLimit(err) || attempt >= 3) throw err;
         attempt++;
@@ -131,12 +132,12 @@ export class TtsService {
     return config.cartesiaApiKey.length > 0;
   }
 
-  private key(text: string, voiceId: string): string {
-    return crypto.createHash("sha1").update(`${config.cartesiaModel}|${voiceId}|${text}`).digest("hex");
+  private key(text: string, voiceId: string, speed?: number): string {
+    return crypto.createHash("sha1").update(`${config.cartesiaModel}|${voiceId}|${speed !== undefined && speed !== 1 ? `${speed}|` : ""}${text}`).digest("hex");
   }
 
-  async speak(text: string, voiceId = config.cartesiaVoiceId): Promise<TtsResponse> {
-    const key = this.key(text, voiceId);
+  async speak(text: string, voiceId = config.cartesiaVoiceId, speed?: number): Promise<TtsResponse> {
+    const key = this.key(text, voiceId, speed);
     const hit = this.memory.get(key);
     if (hit) return { ...hit, cached: true, synthMs: 0 };
     const diskPath = path.join(this.diskDir, `${key}.json`);
@@ -149,7 +150,7 @@ export class TtsService {
     if (pending) return pending;
     const job = (async () => {
       const started = performance.now();
-      const { pcm, words } = await this.synthWithRetry(text, voiceId);
+      const { pcm, words } = await this.synthWithRetry(text, voiceId, speed);
       const response: TtsResponse = {
         mime: "audio/wav",
         audioBase64: pcmToWav(pcm, SAMPLE_RATE).toString("base64"),
