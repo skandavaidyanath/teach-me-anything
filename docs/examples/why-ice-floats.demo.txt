@@ -1,0 +1,145 @@
+[  7s] HEADER "Why ice floats, when almost nothing else does" style=demo topic=why does ice float
+      calibration: Before we start: if you froze a jar of olive oil solid and dropped the solid lump into liquid olive oil, what would it do? {Float, like ice | Sink | Not sure}
+      - b1 The weird one: Most substances sink when frozen because the solid is denser than the liquid; ice floating in water is the exception, shown with one litre of water that becomes about 1.09 litres of ice.
+      - b2 Watch the molecules: In liquid water, molecules tumble and pack closely, breaking and remaking weak links to their neighbours; as the water cools, those links last longer.
+      - b3 Freezing opens the cage: When water freezes, each molecule locks onto exactly four neighbours in a rigid hexagonal lattice, and that lattice holds the molecules farther apart than the liquid did, leaving open space.
+      - b4 Lighter per litre, so it floats: The same number of molecules in more space makes ice about 9 percent less dense than water, so a block of ice floats with about nine tenths of it below the surface.
+      - b5 Back to the hook: The links between water molecules, called hydrogen bonds, explain the exception: other solids pack tighter, but ice builds an open cage, which is why lakes freeze from the top down.
+
+[ 21s] BEAT 1 "The weird one"  [11 sentences, avg 16.9 words, max 23, key 1]
+    Here is a claim that sounds wrong: ice floating is one of the strangest things in your kitchen.
+    [show scene S]
+    On the left, a lump of frozen olive oil sits in liquid olive oil, and it sinks to the bottom.
+    [highlight S[2]]
+    That is what almost every substance does: the solid is packed tighter than the liquid, so it goes down.
+    [clear_highlights]
+    [highlight S[6]]
+    On the right, ice in water does the opposite and bobs at the top.
+    ★ Water is the weird one.
+    [clear_highlights]
+    [show array_row V "volume in litres"]
+    So let's put a number on it: take exactly one litre of liquid water and freeze it.
+    [highlight V[0]]
+    Nothing is added and nothing escapes, so the amount of water stays the same; only its shape changes.
+    [clear_highlights]
+    [pin "Water is the exception" :: Most solids sink in their own liquid, but ice floats on water.]
+    Before we look, decide what you think happens to the volume of that one litre when it freezes.
+    [highlight V[1]]
+    [CHECK choice: One litre of water freezes solid. How much space does the ice take up? {Less than 1 litre | Exactly 1 litre | More than 1 litre} expected ["More than 1 litre","more","More"]]
+      ✓ [update V {"values":["1.00 water","1.09 ice"]}]
+      ✓ Right, it grows to about 1.09 litres, which is why a frozen bottle of water can crack.
+      ✗ [update V {"values":["1.00 water","1.09 ice"]}]
+      ✗ [highlight V[1]]
+      ✗ That is a good guess, because it is exactly what olive oil does, but water grows to about 1.09 litres when it freezes.
+      ✗ The same water spread through more space is lighter per litre, and that is why it floats.
+      ✗ [clear_highlights]
+
+[ 59s] BEAT 2 "Watch the molecules"  [9 sentences, avg 18.0 words, max 26, key 1]
+    So how can the same water take up more room once it freezes?
+    [show component P "Water molecules in a box, drawn flat" [83 lines of code; state {"temp":80,"phase":"liquid","showBonds":false,"showLevel":false}; parts ["box","molecules","bonds","level","readout"]]]
+    Let's look inside, at twenty four water molecules in a box, drawn flat, at eighty degrees.
+    [highlight P[1]]
+    Each one is a big oxygen with two small hydrogens, and right now they are tumbling and shoving past each other.
+    [clear_highlights]
+    Notice how close they pack, nearly touching, with hardly any gaps.
+    [update P {"state":{"showBonds":true}}]
+    [highlight P[2]]
+    These yellow lines are weak links between neighbours, and watch how they flicker on and off.
+    ★ At this temperature, every link snaps almost as soon as it forms, because the molecules are moving too fast to hold on.
+    [clear_highlights]
+    [pin "Liquid water: close, with brief links" :: Molecules tumble close together, forming and breaking weak links to their neighbours all the time.]
+    Now we are going to cool this box to five degrees, so before we do, decide what those links will do.
+    [CHECK choice: Cool the water from 80 °C to 5 °C. The yellow links… {Last longer, so more are there at once | Disappear completely | Stay exactly the same} expected ["Last longer, so more are there at once","last longer","more"]]
+      ✓ [update P {"state":{"temp":5}}]
+      ✓ Right, the molecules slow down, so each link survives longer and the box fills with them.
+      ✗ [update P {"state":{"temp":5}}]
+      ✗ [highlight P[2]]
+      ✗ That is a fair guess, but watch: slower molecules can't shake the links loose, so each one lasts longer and many more are there at once.
+      ✗ [clear_highlights]
+
+[102s] BEAT 3 "Freezing opens the cage"  [12 sentences, avg 18.8 words, max 25, key 2]
+    But wait, if more links are holding the molecules together, shouldn't they pull in tighter and make the water shrink?
+    [update P {"state":{"showLevel":true}}]
+    [highlight P[3]]
+    Let's find out, and this dashed line marks how high our twenty four cold liquid molecules reach right now.
+    [clear_highlights]
+    Now let's cool the box to zero degrees and let it freeze.
+    [update P {"state":{"temp":0,"phase":"ice"}}]
+    [highlight P[2]]
+    Watch each molecule slide into a fixed spot, and watch the yellow links stop flickering and stay put.
+    In real ice every molecule grips exactly four neighbours, in three dimensions; drawn flat like this, you can see three of them.
+    [clear_highlights]
+    [highlight P[1]]
+    ★ Those links only fit at fixed angles, so the molecules get forced into six-sided rings with an empty hole in the middle of each one.
+    [clear_highlights]
+    [highlight P[3]]
+    And look at the dashed line: the same twenty four molecules now reach higher than they did as a liquid.
+    [pause]
+    ★ So the links did not pull the molecules closer; locking every link at its angle propped them apart.
+    [clear_highlights]
+    [pin "Ice is an open cage" :: Freezing locks each molecule to four neighbours at fixed angles, building rings with holes that take more room than the liquid.]
+    Pause here and decide: if we melt this ice back into liquid, where does the dashed line go?
+    [CHECK choice: Melt the ice back into liquid water. The dashed line at the top of the molecules… {Drops back down | Stays where the ice had it | Climbs even higher} expected ["Drops back down","drops","down"]]
+      ✓ [update P {"state":{"temp":5,"phase":"liquid"}}]
+      ✓ Right, the rings break, molecules tumble into the empty holes, and the line drops back down.
+      ✗ [update P {"state":{"temp":5,"phase":"liquid"}}]
+      ✗ [highlight P[3]]
+      ✗ That is a reasonable guess, but watch: once the rings break, the molecules fall into the holes the cage was holding open.
+      ✗ They pack closer again, so the same molecules take less room and the line drops.
+      ✗ [clear_highlights]
+
+[154s] BEAT 4 "Lighter per litre, so it floats"  [12 sentences, avg 21.7 words, max 35, key 1]
+    But wait, you might say, it is the same twenty four molecules, so the ice weighs exactly what the water weighed, so why should it float?
+    [update P {"state":{"phase":"liquid","temp":5,"showLevel":true}}]
+    [highlight P[3]]
+    You're right that the weight doesn't change, so watch this dashed line instead, which marks how much room the molecules fill as a liquid.
+    [update P {"state":{"phase":"ice","temp":0}}]
+    Freeze them, and the very same molecules push the line up, because the cage holds them apart.
+    Drawn flat like this, the jump looks bigger than it really is, and in real ice it is about nine percent more room.
+    [clear_highlights]
+    [update V {"label":"one kilogram of water, volume in litres","values":["1.00 water","1.09 ice"]}]
+    [highlight V[0] V[1]]
+    Now with real numbers: one kilogram of water fills one litre as a liquid, and about one point oh nine litres as ice.
+    [update V {"label":"weight of one litre","values":["1.00 kg water","0.92 kg ice"]}]
+    Spread that one kilogram over one point oh nine litres, and each litre of ice weighs only about zero point nine two kilograms.
+    ★ Same molecules, more room, so less weight in every litre.
+    Weight per litre has a name, density, and the stuff with the lower density gets pushed up to the top.
+    [clear_highlights]
+    [pin "Less dense, so it floats" :: A litre of ice weighs about 0.92 kilograms against a full kilogram for water, so the water pushes the ice up.]
+    [highlight S[6]]
+    Back to the ice in the water jar: before I let it settle, decide how much of it ends up under the surface.
+    [CHECK choice: Ice weighs 0.92 kg per litre, water 1.00 kg. How much of a floating block of ice sits below the surface? {About a tenth | About half | About nine tenths} expected ["About nine tenths","nine tenths","9/10","most"]]
+      ✓ [update S {"items":[{"type":"path","id":"oilJar","d":"M 40 60 L 40 250 L 200 250 L 200 60"},{"type":"line","id":"oilLevel","x1":40,"y1":100,"x2":200,"y2":100,"dashed":true},{"type":"circle","id":"oilLump","label":"solid oil","cx":120,"cy":225,"r":20},{"type":"text","id":"oilLabel","x":70,"y":280,"text":"olive oil","size":14},{"type":"path","id":"waterJar","d":"M 260 60 L 260 250 L 420 250 L 420 60"},{"type":"line","id":"waterLevel","x1":260,"y1":100,"x2":420,"y2":100,"dashed":true},{"type":"circle","id":"iceLump","label":"ice","cx":340,"cy":114,"r":20},{"type":"text","id":"waterLabel","x":310,"y":280,"text":"water","size":14},{"type":"text","id":"fracLabel","x":285,"y":160,"text":"about 9/10 under water","size":13}]}]
+      ✓ Right, ice is almost as heavy as water per litre, so it sinks until about nine tenths is under before the water can hold it up.
+      ✗ [update S {"items":[{"type":"path","id":"oilJar","d":"M 40 60 L 40 250 L 200 250 L 200 60"},{"type":"line","id":"oilLevel","x1":40,"y1":100,"x2":200,"y2":100,"dashed":true},{"type":"circle","id":"oilLump","label":"solid oil","cx":120,"cy":225,"r":20},{"type":"text","id":"oilLabel","x":70,"y":280,"text":"olive oil","size":14},{"type":"path","id":"waterJar","d":"M 260 60 L 260 250 L 420 250 L 420 60"},{"type":"line","id":"waterLevel","x1":260,"y1":100,"x2":420,"y2":100,"dashed":true},{"type":"circle","id":"iceLump","label":"ice","cx":340,"cy":114,"r":20},{"type":"text","id":"waterLabel","x":310,"y":280,"text":"water","size":14},{"type":"text","id":"fracLabel","x":285,"y":160,"text":"about 9/10 under water","size":13}]}]
+      ✗ [highlight S[6]]
+      ✗ That is a reasonable guess, but zero point nine two is very close to one, so the ice has to sink until about nine tenths of it is under water before it is held up.
+      ✗ That is why only the tip of an iceberg shows.
+      ✗ [clear_highlights]
+
+[172s] BEAT 5 "Back to the hook"  [10 sentences, avg 22.2 words, max 29, key 1]
+    So why doesn't olive oil do this too, when its molecules also cling to each other?
+    [update P {"state":{"phase":"ice","temp":0,"showBonds":true}}]
+    [highlight P[2]]
+    The difference is these links: each water molecule locks onto its neighbours at fixed angles, four of them in real three dimensional ice, and that props the cage open.
+    They are called hydrogen bonds, a good name, because a hydrogen on one molecule is the part that reaches over and grabs the oxygen on the next.
+    [clear_highlights]
+    [highlight S[2]]
+    Oil has no links like that, so as it freezes its molecules settle closer together, and the solid sinks.
+    ★ So the opening claim holds: ice floating really is strange, and it only feels normal because water is the one liquid you watch freeze every day.
+    [clear_highlights]
+    [pin "Hydrogen bonds hold the cage open" :: Each water molecule locks to its neighbours by hydrogen bonds, building an open lattice that weighs less per litre than the liquid.]
+    [update S {"items":[{"type":"path","id":"oilJar","d":"M 40 60 L 40 250 L 200 250 L 200 60"},{"type":"line","id":"oilLevel","x1":40,"y1":100,"x2":200,"y2":100,"dashed":true},{"type":"circle","id":"oilLump","label":"solid oil","cx":120,"cy":225,"r":20},{"type":"text","id":"oilLabel","x":70,"y":280,"text":"olive oil","size":14},{"type":"path","id":"waterJar","d":"M 260 60 L 260 250 L 420 250 L 420 60"},{"type":"line","id":"waterLevel","x1":260,"y1":100,"x2":420,"y2":100,"dashed":true},{"type":"text","id":"waterLabel","x":290,"y":280,"text":"a lake in winter","size":14}]}]
+    [highlight S[4]]
+    Here is something you can now predict: this jar is a lake, and the winter air is chilling it from above.
+    Before I freeze it, decide where the ice will end up.
+    [CHECK choice: A lake keeps getting colder all winter. Where does the ice end up? {On top | On the bottom | Spread all through the water} expected ["On top","top","on the top"]]
+      ✓ [update S {"items":[{"type":"path","id":"oilJar","d":"M 40 60 L 40 250 L 200 250 L 200 60"},{"type":"line","id":"oilLevel","x1":40,"y1":100,"x2":200,"y2":100,"dashed":true},{"type":"circle","id":"oilLump","label":"solid oil","cx":120,"cy":225,"r":20},{"type":"text","id":"oilLabel","x":70,"y":280,"text":"olive oil","size":14},{"type":"path","id":"waterJar","d":"M 260 60 L 260 250 L 420 250 L 420 60"},{"type":"line","id":"waterLevel","x1":260,"y1":100,"x2":420,"y2":100,"dashed":true},{"type":"text","id":"waterLabel","x":290,"y":280,"text":"a lake in winter","size":14},{"type":"path","id":"iceLayer","d":"M 262 100 L 418 100 L 418 114 L 262 114 Z"},{"type":"text","id":"iceText","x":305,"y":92,"text":"ice on top","size":13}]}]
+      ✓ Right, the ice forms on top and floats there like a lid, keeping the water below liquid so the fish survive the winter, and isn't that neat.
+      ✗ [update S {"items":[{"type":"path","id":"oilJar","d":"M 40 60 L 40 250 L 200 250 L 200 60"},{"type":"line","id":"oilLevel","x1":40,"y1":100,"x2":200,"y2":100,"dashed":true},{"type":"circle","id":"oilLump","label":"solid oil","cx":120,"cy":225,"r":20},{"type":"text","id":"oilLabel","x":70,"y":280,"text":"olive oil","size":14},{"type":"path","id":"waterJar","d":"M 260 60 L 260 250 L 420 250 L 420 60"},{"type":"line","id":"waterLevel","x1":260,"y1":100,"x2":420,"y2":100,"dashed":true},{"type":"text","id":"waterLabel","x":290,"y":280,"text":"a lake in winter","size":14},{"type":"path","id":"iceLayer","d":"M 262 100 L 418 100 L 418 114 L 262 114 Z"},{"type":"text","id":"iceText","x":305,"y":92,"text":"ice on top","size":13}]}]
+      ✗ [highlight S[7]]
+      ✗ That is what olive oil would do, but ice weighs less per litre than water, so it forms on top and stays there.
+      ✗ That lid of ice shields the water underneath, which is how fish make it through the winter, and I think that is wonderful.
+      ✗ [clear_highlights]
+
+[172s] lesson.complete 

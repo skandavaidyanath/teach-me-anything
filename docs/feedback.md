@@ -109,3 +109,9 @@ Not verified: how the slowed key line sounds. Cartesia returned HTTP 402 (credit
 
 Side effect found and fixed: the style guide roughly doubled the Planner's output at high effort, which pushed beat 3 to 228 s in one run. The slow tier now writes beat 3 alone at medium effort the moment beat 2 is done, with the rest streamed in parallel; beat 3 landed at 62 s on the next run.
 
+Reviewer, same day: "one sentence per beat", "at most 18 words": these are heuristics that will come back to bite us; the model should use its intelligence to decide when to speak slowly and how long sentences should be. Removed: the word caps in the prompts, the one-key-per-beat rule and its enforcement, and the second call that split long sentences. Kept: the pace, key, and pause controls as capabilities the model uses at its discretion, the explanation in the style guide of why spoken sentences are short, and the per-beat word counts in the log as a measurement.
+
+Measured after the removal, on a fresh topic ("why does ice float"), with the reason explained and no cap: 46 sentences at 21.3 words on average, longest 35; one or two key lines per beat, several of them over twenty words; one pause op placed by the model on its own. So with reasons alone the model writes at the length of the first guide, not of the spoken sources. That is now the known cost of leaving the choice to the model, and the levers that stay within that choice are better reasons and examples in the guide, or showing the model its own numbers next to the sources' as information. Whether to pull either is the reviewer's call.
+
+Cartesia credits restored the same evening; the speed path verified: one fresh 12-word sentence ran 8.24 s at speed 1, 9.12 s at 0.85 (the key-line setting), 9.84 s at 0.7. Cartesia treats speed as guidance, so 0.85 is a gentle slowdown; the mapping from "slow" to a number lives in one place in the client (PACE_SPEED) if it should be stronger.
+

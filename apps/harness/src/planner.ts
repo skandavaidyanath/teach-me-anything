@@ -31,8 +31,8 @@ export type PlannerEvent =
 
 const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 parts called beats. Structural rules:
 - One idea per beat. Every beat ends with exactly one check, and the check is the last op.
-- One sentence per say op, at most eighteen words, plain, written to be spoken aloud. A thought that needs more words is two say ops. No markdown. Spell out symbols the way a person would say them.
-- Exactly one say op per beat has "key": true: the sentence that carries the beat's idea, under twelve words. It is spoken slowly with a silence after it and set apart in the caption, so it comes right after the reveal it explains, never first.
+- One sentence per say op, plain, written to be spoken aloud. No markdown. Spell out symbols the way a person would say them.
+- Shape the delivery where it matters: "key": true on a sentence the listener needs to land (spoken slowly, with a breath after, set apart in the caption), "pace" on a sentence that should go slower or quicker, a pause op where silence does work. You decide which and how often.
 - Every say op refers to something the learner can see. Highlight what you are talking about. When a value moves, use a move op so it travels. Use the derivation element for step-by-step math, the split_tree for halving, rows for lists, a scene for a still diagram, and a component for anything that moves, changes viewpoint, or has parts that interact.
 - In demo mode, write one component for the lesson (a simulation or mechanism with state), introduce it in beat 2, and drive it with update ops in later beats rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. In write-along mode, the lines are a derivation element shown with revealed:1 and revealed one more line per update as it is spoken. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
 - The reaction to a check shows the answer on the board, with an update or a highlight, before the sentence that explains it.
@@ -260,44 +260,6 @@ export function sayStats(ops: Op[]): SayStats {
   };
 }
 
-/** Sentences this long are hard to follow when spoken; a short call splits them, same meaning, same order. */
-const LONG_SENTENCE_WORDS = 26;
-
-export async function shortenLongSays(ops: Op[], streamer: PlannerStreamer): Promise<{ ops: Op[]; shortened: number }> {
-  const long = allSays(ops).filter((s) => wordCount(s.text) > LONG_SENTENCE_WORDS);
-  if (long.length === 0) return { ops, shortened: 0 };
-  const user = `These sentences will be spoken aloud in a lesson and are too long to follow. Rewrite each as two or three short spoken sentences of at most fifteen words, same meaning, same order, nothing added. Return one line per input, numbered the same way, with the sentences separated by spaces.\n\n${long.map((s, i) => `${i + 1}. ${s.text}`).join("\n")}`;
-  let buffer = "";
-  try {
-    for await (const piece of streamer("You split long spoken sentences into short ones.", user, "low")) if (piece.kind === "text") buffer += piece.text;
-  } catch {
-    return { ops, shortened: 0 };
-  }
-  const rewrites = new Map<string, string[]>();
-  for (const line of buffer.split("\n")) {
-    const m = /^\s*(\d+)[.)]\s*(.+)$/.exec(line);
-    if (!m) continue;
-    const src = long[Number(m[1]) - 1];
-    if (!src) continue;
-    const parts = m[2]!.trim().split(SENTENCE_END).map((p) => p.trim()).filter(Boolean);
-    if (parts.length >= 2 && parts.every((p) => wordCount(p) <= LONG_SENTENCE_WORDS)) rewrites.set(src.id, parts);
-  }
-  if (rewrites.size === 0) return { ops, shortened: 0 };
-  const apply = (list: Op[]): Op[] =>
-    list.flatMap((op): Op[] => {
-      if (op.op === "check") return [{ ...op, onCorrect: apply(op.onCorrect ?? []), onIncorrect: apply(op.onIncorrect ?? []) }];
-      if (op.op !== "say") return [op];
-      const parts = rewrites.get(op.id);
-      if (!parts) return [op];
-      return parts.map((text, i) => {
-        const piece: Op = { ...op, id: i === 0 ? op.id : `${op.id}_s${i + 1}`, text };
-        if (i > 0 && piece.op === "say") delete piece.key;
-        return piece;
-      });
-    });
-  return { ops: apply(ops), shortened: rewrites.size };
-}
-
 function collectShown(ops: Op[], into: Set<string>): void {
   for (const op of ops) {
     if (op.op === "show") into.add(op.element.id);
@@ -371,17 +333,6 @@ export function normalizeBeat(raw: unknown, index: number, knownBefore: Set<stri
     return out;
   };
   ops = filter(ops);
-
-  // One key sentence per beat: the first one marked stays, the rest become ordinary.
-  let keysSeen = 0;
-  ops = ops.map((o) => {
-    if (o.op !== "say" || !o.key) return o;
-    keysSeen++;
-    if (keysSeen === 1) return o;
-    const { key: _k, ...rest } = o;
-    return rest as Op;
-  });
-  if (keysSeen > 1) issues.push(`${keysSeen} key sentences; kept the first`);
 
   const checks = ops.filter((o) => o.op === "check");
   if (checks.length === 0) {
@@ -512,12 +463,8 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       yield { type: "error", message: `beat ${index + 1} could not be repaired: ${(result as { errors: string[] }).errors.join("; ")}` };
       return;
     }
-    const shortened = await shortenLongSays(result.beat.ops, streamer);
-    const beat = shortened.shortened > 0 ? { ...result.beat, ops: shortened.ops } : result.beat;
-    collectShown(beat.ops, known);
-    const issues = [...attached.dropped.map((id) => `dropped show of component ${id}: no code block`), ...result.issues];
-    if (shortened.shortened > 0) issues.push(`split ${shortened.shortened} long sentence${shortened.shortened === 1 ? "" : "s"} with a second call`);
-    yield { type: "beat", index, beat, issues, stats: sayStats(beat.ops) };
+    collectShown(result.beat.ops, known);
+    yield { type: "beat", index, beat: result.beat, issues: [...attached.dropped.map((id) => `dropped show of component ${id}: no code block`), ...result.issues], stats: result.stats };
   };
 
   const handleComponent = function* (body: string): Generator<PlannerEvent> {
@@ -712,10 +659,8 @@ export async function* replanLesson(
         yield { type: "error", message: `replan beat ${index + 1} could not be repaired` };
         continue;
       }
-      const shortened = await shortenLongSays(result.beat.ops, streamer);
-      const beat = shortened.shortened > 0 ? { ...result.beat, ops: shortened.ops } : result.beat;
-      collectShown(beat.ops, known);
-      yield { type: "beat", index, beat, issues: result.issues, stats: sayStats(beat.ops) };
+      collectShown(result.beat.ops, known);
+      yield { type: "beat", index, beat: result.beat, issues: result.issues, stats: result.stats };
       index++;
     }
     yield { type: "done", model: null, inputTokens: null, outputTokens: null };

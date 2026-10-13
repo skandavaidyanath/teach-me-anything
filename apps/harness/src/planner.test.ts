@@ -233,33 +233,4 @@ describe("sentences and pacing", () => {
     const stats = sayStats(ops);
     expect(stats).toMatchObject({ says: 5, keys: 1, maxWords: 9 });
   });
-
-  it("normalizeBeat keeps one key sentence and counts words", () => {
-    const r = normalizeBeat(
-      { id: "b1", title: "T", ops: [{ op: "say", id: "s1", text: "One.", key: true }, { op: "say", id: "s2", text: "Two two.", key: true }, ...beat1.ops.slice(3)] },
-      0,
-      new Set(["L"]),
-      "b1",
-    );
-    expect(r.beat).not.toBeNull();
-    if (r.beat) {
-      expect(r.beat.ops.filter((o) => o.op === "say" && o.key).map((o) => o.id)).toEqual(["s1"]);
-      expect(r.issues).toContain("2 key sentences; kept the first");
-      expect(r.stats.keys).toBe(1);
-    }
-  });
-
-  it("asks for long sentences to be split and replaces them in place", async () => {
-    const { shortenLongSays } = await import("./planner");
-    const long = "This is a sentence that goes on and on with far too many words for anyone listening to follow comfortably while also watching the board change in front of them.";
-    const streamer: PlannerStreamer = async function* (_s, user) {
-      expect(user).toContain(`1. ${long}`);
-      yield { kind: "text", text: "1. This sentence goes on far too long. Nobody listening can follow it. Not while the board is changing.\n" };
-      yield { kind: "final", model: "fake", inputTokens: 1, outputTokens: 1, refusal: false };
-    };
-    const { ops, shortened } = await shortenLongSays([{ op: "say", id: "b2.s1", text: "Short one.", key: true }, { op: "say", id: "b2.s2", text: long }], streamer);
-    expect(shortened).toBe(1);
-    expect(ops.map((o) => (o.op === "say" ? o.text : ""))).toEqual(["Short one.", "This sentence goes on far too long.", "Nobody listening can follow it.", "Not while the board is changing."]);
-    expect(ops.map((o) => o.id)).toEqual(["b2.s1", "b2.s2", "b2.s2_s2", "b2.s2_s3"]);
-  });
 });
