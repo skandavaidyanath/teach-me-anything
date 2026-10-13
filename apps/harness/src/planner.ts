@@ -3,7 +3,7 @@ import { mergeSortLesson } from "@tma/content";
 import { BeatSchema, type Beat, type LessonHeader, type Op, type OutlineEntry, type RecordEntry, ComponentSchema, type Component } from "@tma/schema";
 import { jsonrepair } from "jsonrepair";
 import { z } from "zod";
-import { PRIMITIVES_DOC } from "./catalog";
+import { PRIMITIVES_DOC, STYLE_GUIDE } from "./catalog";
 import { config } from "./env";
 
 /**
@@ -27,13 +27,12 @@ export type PlannerEvent =
   | { type: "error"; message: string }
   | { type: "done"; model: string | null; inputTokens: number | null; outputTokens: number | null };
 
-const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 parts called beats. Rules:
+const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 parts called beats. Structural rules:
 - One idea per beat. Every beat ends with exactly one check, and the check is the last op.
 - One sentence per say op, short and plain, written to be spoken aloud. No markdown. Spell out symbols the way a person would say them.
-- Teach with the board, not about it. Every say op refers to something the learner can see. Anything spatial, moving, quantitative, or structural is drawn, not described: never ask the learner to imagine something you could show. Highlight what you are talking about. When a value moves, use a move op so it travels. Use the derivation element for step-by-step math, the split_tree for halving, rows for lists, a scene for a still diagram, and a component for anything that moves, changes viewpoint, or has parts that interact.
-- When the topic is physical, dynamic, or has a viewpoint, write one component for the lesson (a simulation or mechanism with state), introduce it in beat 2, and drive it with update ops in later beats rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
-- Introduce every symbol on the board before it appears in a formula: say what it is and show it, or do not use it. Prefer words to symbols when a symbol is not needed.
-- A check asks the learner to predict before the reveal (what happens if the string snaps?) or to judge a case with the idea, never to repeat the definition just spoken. The reaction shows the answer on the board, with an update or a highlight, before the sentence that explains it.
+- Every say op refers to something the learner can see. Highlight what you are talking about. When a value moves, use a move op so it travels. Use the derivation element for step-by-step math, the split_tree for halving, rows for lists, a scene for a still diagram, and a component for anything that moves, changes viewpoint, or has parts that interact.
+- In demo mode, write one component for the lesson (a simulation or mechanism with state), introduce it in beat 2, and drive it with update ops in later beats rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. In write-along mode, the lines are a derivation element shown with revealed:1 and revealed one more line per update as it is spoken. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
+- The reaction to a check shows the answer on the board, with an update or a highlight, before the sentence that explains it.
 - Pin one idea per beat with a short bold title and one sentence of body. Pin formulas as kind "equation" with "tex".
 - Checks have a known answer: choice with 3 options and an "expected" list of accepted answers (include the exact option text), or click_cell with targets and an expected target. The last beat's check may be an ungraded "want to go deeper?" prompt. Reactions: onCorrect one sentence; onIncorrect a highlight or update, one or two sentences that teach, then clear_highlights.
 - Each beat has a "summary": one sentence of what it teaches, so the tutor can place questions in the lesson.
@@ -42,7 +41,7 @@ const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 
 - A short calibration question with 3 options opens the lesson; beat 1 must work regardless of the answer.`;
 
 const FORMAT = `OUTPUT FORMAT. Write blocks, nothing else. Each block is a line "===HEADER===", "===BEAT===", or "===COMPONENT===", then its content, then a line "===END===". HEADER and BEAT content is one JSON object, strictly valid: double-quoted keys and strings, a comma between every pair of items, no trailing commas, no comments, no text outside the braces. Inside strings, escape backslashes (write \\\\log for \\log) and double quotes.
-The header JSON: {"topic":"...","title":"...","calibration":{"prompt":"...","options":["...","...","..."]},"outline":[{"id":"b1","title":"...","summary":"..."}, ...]}
+The header JSON: {"topic":"...","title":"...","style":"demo" or "write-along","calibration":{"prompt":"...","options":["...","...","..."]},"outline":[{"id":"b1","title":"...","summary":"..."}, ...]}
 Each beat JSON: {"id":"b1","title":"...","summary":"...","ops":[...]}
 A COMPONENT block carries a figure's code unescaped. Its first line is a JSON object with every field but "code" ({"id":"P","title":"A pendulum","width":600,"height":360,"state":{"length":1},"stateDoc":"length: 0.5 to 2","parts":["bob","string","gravity"]}), and the lines after it up to ===END=== are the code. Write the block before the first beat that shows the figure, and show it with {"op":"show","id":"b2.e1","element":{"kind":"component","id":"P"}}; the code is attached from the block.`;
 
@@ -102,11 +101,12 @@ function exampleBlocks(): string {
   ].join("\n");
 }
 
-export const PLANNER_SYSTEM = `${RULES}\n\n${PRIMITIVES_DOC}\n\n${FORMAT}\n\nEXAMPLE of the format, from a lesson on merge sort (header and the first two beats):\n${exampleBlocks()}\n\nEXAMPLE of a COMPONENT block and a beat that uses it, from a different lesson, on pendulums:\n${EXAMPLE_COMPONENT}`;
+export const PLANNER_SYSTEM = `${RULES}\n\n${STYLE_GUIDE}\n\n${PRIMITIVES_DOC}\n\n${FORMAT}\n\nEXAMPLE of the format (the format only; its wording predates the style rules above), from a lesson on merge sort, header and the first two beats:\n${exampleBlocks()}\n\nEXAMPLE of a COMPONENT block and a beat that uses it, from a different lesson, on pendulums:\n${EXAMPLE_COMPONENT}`;
 
 const HeaderBlockSchema = z.object({
   topic: z.string().min(1),
   title: z.string().min(1),
+  style: z.enum(["demo", "write-along"]).optional(),
   calibration: z.object({ prompt: z.string().min(1), options: z.array(z.string().min(1)).min(2) }).optional(),
   outline: z.array(z.object({ id: z.string().min(1), title: z.string().min(1), summary: z.string().optional() })).min(2),
 });
@@ -296,6 +296,7 @@ function headerFromBlock(block: z.infer<typeof HeaderBlockSchema>, id: string): 
     id,
     topic: block.topic,
     title: block.title,
+    ...(block.style ? { style: block.style } : {}),
     ...(block.calibration ? { calibration: block.calibration } : {}),
     outline: block.outline.map((b) => ({ id: b.id, title: b.title, ...(b.summary ? { summary: b.summary } : {}) })),
     branches: [],
@@ -412,7 +413,7 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       yield { type: "error", message: "the planner produced no header" };
       return;
     }
-    const headerBlock = `===HEADER===\n${JSON.stringify({ topic: header.topic, title: header.title, calibration: header.calibration, outline: header.outline })}\n===END===`;
+    const headerBlock = `===HEADER===\n${JSON.stringify({ topic: header.topic, title: header.title, style: header.style, calibration: header.calibration, outline: header.outline })}\n===END===`;
     const total = header.outline.length;
 
     // Fast tier at low effort. Beats 1 and 2 are written at the same time, both from the header

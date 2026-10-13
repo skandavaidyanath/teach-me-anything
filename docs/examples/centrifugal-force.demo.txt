@@ -1,0 +1,146 @@
+[  8s] HEADER "The outward push that is not there" style=demo topic=centrifugal force
+      calibration: Quick check before we start: when a car takes a sharp turn, what do you think pushes you against the door? {An outward force called centrifugal force | The door pushing on me | I'm not sure}
+      - b1 The push you feel: Hook: in a turning car you feel shoved outward, yet no force pushes you outward; shown as a still scene of a car on a curve with you inside.
+      - b2 Cut the string: A ball whirled on a string flies off along the tangent, not straight outward, when the string is cut, so nothing was pulling it outward.
+      - b3 The only real force points in: While the ball circles, the only real force on it is the string's pull toward the centre; that inward pull is what bends its straight-line path into a circle.
+      - b4 Ride along with the ball: From a viewpoint spinning with the ball, it sits still, so an outward centrifugal force must be invented to balance the string; it is a fictitious force that exists only in the rotating view.
+      - b5 Faster, tighter, and the formula: Doubling the speed quadruples the needed inward pull and the felt outward push, which is labelled F equals m v squared over r; back in the car, the door pushes you inward and your body's tendency to go straight is what feels like an outward shove.
+
+[ 44s] BEAT 1 "The push you feel"
+    [show scene S]
+    The force that throws you against the car door on a sharp turn does not exist, and by the end you will see what is really going on.
+    [highlight S[2]]
+    This dot is the car, seen from above, and you are inside it, going round this dashed curve.
+    [highlight S[3]]
+    The black arrow shows which way the car is heading right now.
+    [highlight S[4]]
+    And this red arrow is what you feel, a shove pointing straight out, away from the centre of the turn.
+    [clear_highlights]
+    I've drawn it in red because that shove is real as a feeling, but I am going to claim nothing in the world is pushing you that way.
+    [pin "The outward shove is felt, not pushed" :: In a turning car you feel pressed outward, but we will look for what actually pushes you.]
+    Before we go on, make a prediction about the one thing that is definitely touching you on that side.
+    [highlight S[2]]
+    [CHECK choice: You are pressed against the outside door as the car turns. Which way does the door push on you? {Outward, away from the centre | Inward, toward the centre | It doesn't push at all} expected ["Inward, toward the centre","inward","toward the centre","toward the center"]]
+      ✓ [update S {"items":[{"id":"road","type":"circle","cx":210,"cy":250,"r":170,"dashed":true,"label":"the curve"},{"id":"centre","type":"dot","cx":210,"cy":250,"r":5,"label":"centre of the turn"},{"id":"car","type":"dot","cx":210,"cy":80,"r":14,"label":"the car, with you inside"},{"id":"vel","type":"arrow","x1":210,"y1":80,"x2":300,"y2":80,"role":"velocity","label":"heading"},{"id":"felt","type":"arrow","x1":210,"y1":80,"x2":210,"y2":25,"role":"fictitious","label":"the shove you feel"},{"id":"door","type":"arrow","x1":210,"y1":80,"x2":210,"y2":140,"role":"force","label":"door pushes you"},{"id":"cap","type":"text","x":20,"y":290,"text":"a car turning right, seen from above","size":13}]}]
+      ✓ [highlight S[5]]
+      ✓ Yes, the green arrow shows the door pushing you inward, which is the opposite of what you feel, and that mismatch is the puzzle.
+      ✓ [clear_highlights]
+      ✗ [update S {"items":[{"id":"road","type":"circle","cx":210,"cy":250,"r":170,"dashed":true,"label":"the curve"},{"id":"centre","type":"dot","cx":210,"cy":250,"r":5,"label":"centre of the turn"},{"id":"car","type":"dot","cx":210,"cy":80,"r":14,"label":"the car, with you inside"},{"id":"vel","type":"arrow","x1":210,"y1":80,"x2":300,"y2":80,"role":"velocity","label":"heading"},{"id":"felt","type":"arrow","x1":210,"y1":80,"x2":210,"y2":25,"role":"fictitious","label":"the shove you feel"},{"id":"door","type":"arrow","x1":210,"y1":80,"x2":210,"y2":140,"role":"force","label":"door pushes you"},{"id":"cap","type":"text","x":20,"y":290,"text":"a car turning right, seen from above","size":13}]}]
+      ✗ [highlight S[5]]
+      ✗ That's a fair guess, but a door can only push you away from itself, so it pushes you inward, toward the centre, as this green arrow shows.
+      ✗ The real push points in, the felt shove points out, and that mismatch is the puzzle.
+      ✗ [clear_highlights]
+
+[ 51s] BEAT 2 "Cut the string"
+    If something really shoves you outward, we should be able to catch it in the act.
+    [show component P "A ball whirled on a string" [60 lines of code; state {"speed":1,"radius":1,"cut":false,"view":"ground","showVelocity":false,"showPull":false,"showOutward":false}; parts ["ball","string","center","velocity","pull","outward","trail"]]]
+    Let's swap the car for something simpler, a ball whirled on a string.
+    [highlight P[0]]
+    This dot is the ball.
+    [highlight P[1] P[2]]
+    This line is the string, tied to a post right here in the middle.
+    [clear_highlights]
+    [update P {"state":{"showVelocity":true}}]
+    [highlight P[3]]
+    This arrow shows which way the ball is heading at each instant, and notice it always lies along the edge of the circle.
+    [pin "Heading runs along the circle" :: At every instant the ball is heading along the edge of the circle, never straight outward.]
+    [clear_highlights]
+    In a moment I am going to cut the string, so pause here and decide where the ball goes.
+    [CHECK choice: The string is cut. Which way does the ball fly? {Straight outward, away from the post | Straight on, the way it was heading | It keeps curving, then drifts outward} expected ["Straight on, the way it was heading","straight on","along the arrow"]]
+      ✓ [update P {"state":{"cut":true}}]
+      ✓ [highlight P[6]]
+      ✓ Right, it sails off along that dashed line, the way the arrow pointed, and nothing tugs it away from the post.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"cut":true}}]
+      ✗ [highlight P[6] P[3]]
+      ✗ That is a good guess, and it is what most people say, but watch the dashed line: the ball goes straight on, the way the arrow pointed.
+      ✗ If an outward force had been there, the ball would have shot away from the post, and it does not.
+      ✗ [clear_highlights]
+
+[123s] BEAT 3 "The only real force points in"
+    But before the cut the ball was going round, not straight, so something was bending its path.
+    Let's tie the string back on and set the ball circling again.
+    [update P {"state":{"cut":false,"showVelocity":true}}]
+    [update P {"state":{"showPull":true}}]
+    [highlight P[4]]
+    This green arrow is the string's pull on the ball, and it always points straight at the post.
+    [highlight P[3] P[4]]
+    At every instant the ball is about to carry on along the black arrow, and the green pull turns it a little toward the centre, again and again, and that is what makes a circle.
+    [clear_highlights]
+    Notice what I am not saying: I am not saying the pull drags the ball in to the post, it only keeps turning it.
+    [pin "The only real force points in" :: The string pulls the ball toward the centre, and that inward pull bends its straight path into a circle.]
+    [highlight P[3] P[4]]
+    The green and black arrows always meet at a right angle, so pause and decide what that pull does to the ball's speed.
+    [CHECK choice: The string's pull is always at right angles to the way the ball is heading. What does the pull do to the ball's speed? {It speeds the ball up | It slows the ball down | It only turns the ball, the speed stays the same} expected ["It only turns the ball, the speed stays the same","only turns it","stays the same","the same"]]
+      ✓ [highlight P[3] P[4]]
+      ✓ Right, a pull at right angles to the heading turns the ball without speeding it up or slowing it down.
+      ✓ [clear_highlights]
+      ✗ [highlight P[3] P[4]]
+      ✗ That is a natural guess, but look at the corner between the green and black arrows, it is always a right angle.
+      ✗ A pull straight across the direction of travel has nothing to push forward or hold back, so it only turns the ball, and the speed stays the same.
+      ✗ [clear_highlights]
+
+[132s] BEAT 4 "Ride along with the ball"
+    Whoa, but if the only real force points in, why does the outward shove feel so real when you are the one going round?
+    Let's find out by riding along with the ball.
+    [update P {"state":{"view":"rotating"}}]
+    [highlight P[0]]
+    Now the camera spins with the ball, so the ball sits still and the dots behind it wheel round.
+    [highlight P[4]]
+    But the green string is still pulling it toward the post, and a ball that sits still with one pull on it makes no sense.
+    [clear_highlights]
+    [update P {"state":{"showOutward":true}}]
+    [highlight P[5]]
+    So from this spinning view we have to add a push that cancels the pull, this red arrow pointing outward.
+    This is called the centrifugal force, and it is called fictitious because nothing in the world exerts it, it appears only because our viewpoint is turning.
+    [clear_highlights]
+    If that feels like cheating, good, it is a piece of bookkeeping that makes the spinning view add up.
+    [pin "Centrifugal force" :: An outward push that appears only from a spinning viewpoint; nothing real exerts it.]
+    [highlight P[0] P[1]]
+    We are still spinning with the ball, and I am about to cut the string again, so decide what you will see from here.
+    [CHECK choice: Still spinning along with the ball, we cut the string. What do you see the ball do? {It stays put beside us | It drifts outward and curls away | It falls in toward the post} expected ["It drifts outward and curls away","drifts outward","outward"]]
+      ✓ [update P {"state":{"cut":true}}]
+      ✓ [highlight P[6]]
+      ✓ Yes, from the spinning view the ball looks flung outward, as the red arrow would have it, even though from the ground it went dead straight.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"cut":true}}]
+      ✗ [highlight P[6]]
+      ✗ Fair guess, but watch the dashed track: from where we spin, the ball slides outward and curls away.
+      ✗ From the ground it went straight; it only looks flung out because we keep turning and the ball does not.
+      ✗ [clear_highlights]
+
+[144s] BEAT 5 "Faster, tighter, and the formula"
+    So if the outward push is invented, why does a faster turn shove you harder?
+    Let's go back to the ground, tie the string on, and let the ball go round slowly on a long string.
+    [update P {"state":{"view":"ground","cut":false,"showOutward":false,"showPull":true,"showVelocity":true,"speed":0.7,"radius":1.4}}]
+    [highlight P[4]]
+    Look at how short the green pull is at this slow speed.
+    [clear_highlights]
+    Now let's double the speed.
+    [update P {"state":{"speed":1.4}}]
+    [highlight P[4]]
+    The green arrow is now four times as long, because twice the speed needs four times the pull to keep turning the ball.
+    We write that as F equals m v squared over r, where F is this green pull, m is the ball's mass, v its speed, and r the string length.
+    [pin "The pull a circle needs" :: The inward pull needed grows with the square of the speed and shrinks with the radius.]
+    I like this formula because the v squared is the quadrupling you just watched, and the r underneath says a tighter circle needs more pull.
+    [clear_highlights]
+    [highlight S[5]]
+    Back in the car, the door plays the string, pushing you inward with exactly this pull.
+    [highlight S[4]]
+    And this red shove is your body trying to carry straight on while the door turns you, real as a feeling, but not a force pushing you outward.
+    [clear_highlights]
+    Now you can predict how hard any turn will press you from its speed and its tightness, and I think it is neat that the push you feel is just you trying to go straight.
+    [highlight P[1] P[4]]
+    One last prediction before we look: same speed, but half the string.
+    [CHECK choice: The ball keeps the same speed, but the string is halved, like a turn twice as tight. How hard must the string pull now? {Half as hard | Twice as hard | Four times as hard} expected ["Twice as hard","twice","2","two times"]]
+      ✓ [update P {"state":{"radius":0.7}}]
+      ✓ [highlight P[4]]
+      ✓ Right, the green arrow doubles, because r sits underneath on its own, not squared, so the door in a turn twice as tight pushes you twice as hard.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"radius":0.7}}]
+      ✗ [highlight P[4]]
+      ✗ Good guess, but watch the green arrow: it doubles, not quadruples, and it certainly does not shrink.
+      ✗ Only the speed is squared in the formula, while r sits underneath on its own, so halving the string doubles the pull.
+      ✗ [clear_highlights]
+
+[144s] lesson.complete 

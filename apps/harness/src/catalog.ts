@@ -1,7 +1,25 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 /**
  * The board vocabulary, written once for every model that produces ops.
  * Kept as plain text so it sits in a cached prompt prefix.
  */
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+
+/** How a lesson sounds and moves: the style guide in prompts/style.md, editable without touching code. */
+export const STYLE_GUIDE = fs.readFileSync(path.join(here, "..", "prompts", "style.md"), "utf8").trim();
+
+/** The voice rules alone, for the tutor's prompt. */
+export const VOICE_GUIDE = (() => {
+  const at = STYLE_GUIDE.indexOf("VOICE,");
+  return at === -1 ? STYLE_GUIDE : STYLE_GUIDE.slice(at);
+})();
+
+export const LESSON_STYLES = ["demo", "write-along"] as const;
+export type LessonStyle = (typeof LESSON_STYLES)[number];
 
 export const COMPONENT_API_DOC = `A component's code is the body of an HTML page: markup (SVG or divs), a <style>, and one <script>. It runs in a frame of the given width and height with no network and no libraries, so draw with SVG and plain DOM. Keep it under about 120 lines. The script gets window.tma:
 - tma.state: the current state object.

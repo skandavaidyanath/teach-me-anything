@@ -71,3 +71,28 @@ What changed in v0.3 (built 2026-10-13), in the order proposed:
 
 Decided with the reviewer on 2026-10-12: give the Tutor and the Planner full coding flexibility rather than more fixed primitives. Built as a `component` element (decision 36). First live run on a Planner-written centrifugal force lesson: beat 2 arrived with a figure of a ball on a string, orbiting, with velocity and tension arrows that follow it and a state the later beats drive (speed, string snapped, viewpoint). The highlight glow lands on the arrow the narration names. The car question was answered in 1.2 s to the first sentence with a drawn car scene; the follow-up "I still don't get it" redrew a car scene in the first run because the record did not say what the first answer had drawn. Fixed in three steps across four live runs: the record now carries each answer's opening sentence and drawings (and the filler and no-op state updates are kept out of it); the first line of an answer is a drawing or an explicit @nodraw; and because Sonnet at low effort still answered a repeat in words about half the time, the harness now enforces the rule with one extra call for the picture when a repeat drew nothing (decision 39). Question latency on Sonnet: first token 0.66 to 0.96 s (one 4.8 s outlier), first sentence 1.0 to 2.5 s, done 2.9 to 4.5 s. Across seven live runs every answer drew; on a repeat the Tutor drew the learner's car again four times out of five rather than switching the lesson's figure to the rotating view, so "a different kind of picture" is the open item (decision 39). Writing beats 1 and 2 concurrently moved beat 2's arrival from about 70 s to 43 to 51 s after the topic, ahead of beat 1's check.
 
+## Style pass, 2026-10-13
+
+Asked for: lessons that follow Veritasium and 3Blue1Brown (visual demonstrations) and Khan Academy and Numberphile (explaining while writing), as references for both style and script structure, and to compare against the real videos before claiming it works.
+
+Done: captions pulled for one video from each channel (two from Veritasium: entropy, and gravity as curved spacetime; 3Blue1Brown's derivative paradox; Khan Academy's derivative as a concept; Numberphile's Josephus problem), read in full, and distilled into `apps/harness/prompts/style.md` with each move attributed. Three lessons were planned before and after, read against the transcripts, and counted.
+
+What the transcripts corrected in the first draft of the guide, which had been written from memory: the voice is "I" (the teacher's own thinking) and "you" (the learner) far more than "we"; the teachers voice the learner's objection out loud and answer it ("whoa, but he is obviously accelerating"); after a subtle reveal they say what they are not claiming; they tell you when confusion is the right reaction; Numberphile gathers small cases by hand and states a conjecture before proving it; Khan narrates every stroke ("this point right here"); notation arrives with the reason it is good. "Imagine" is fine when the thing is on screen at that moment.
+
+Voice counts, whole transcript versus all say lines of a lesson (sentences, average words per sentence, "I", "you", questions, voiced objections):
+
+| Source | Sentences | Words/sentence | I | you | Questions | Objections |
+|---|---|---|---|---|---|---|
+| 3Blue1Brown, derivative | 135 | 21.6 | 30 | 56 | 9 | 3 |
+| Numberphile, Josephus | 222 | 12.3 | 62 | 51 | 17 | 1 |
+| Veritasium, entropy | 281 | 15.1 | 25 | 39 | 26 | 4 |
+| Veritasium, gravity | 130 | 19.6 | 22 | 71 | 12 | 6 |
+| Ours, centrifugal, first draft of the guide | 38 | 20.1 | 1 | 16 | 0 | 0 |
+| Ours, centrifugal, guide from transcripts | 43 | 22.5 | 9 | 25 | 2 | 2 |
+| Ours, derivative of x², first draft | 36 | 20.2 | 2 | 1 | 0 | 0 |
+| Ours, derivative of x², from transcripts | 56 | 20.8 | 5 | 10 | 4 | 1 |
+| Ours, Josephus, from transcripts | 62 | 20.9 | 5 | 11 | 2 | 0 |
+
+What now reads like the references, in the lessons under docs/examples: the hook as a claim ("the force that throws you against the car door does not exist, and by the end you will see what is really going on"), "pause here and decide where the ball goes", "notice what I am not saying: I am not saying the pull drags the ball in", "whoa, but if the only real force points in, why does the outward shove feel so real", "if that feels like cheating, good", "I like this formula because the v squared is the quadrupling you just watched", the formula last with each symbol pointed at a part, and the return to the opening claim. The Josephus lesson in write-along mode follows the Numberphile video's own structure: start with seven, work every kill by hand, gather one through eight, "that surprised me, seat one is back", spot the climb by two, state the rule, check it against the table, swap numbers for symbols in the same places, then explain why powers of two reset.
+
+What still differs: our sentences run about 21 words against 12 to 15 in the spoken sources, and we ask the learner a question every 15 to 30 sentences where the sources ask every 5 to 10. Added to the guide as numeric rules (most sentences under fifteen words; a question to the learner every few sentences), then checked on a topic not used while writing the guide, "why is the sky blue": 48 sentences at 17.6 words, 9 questions, 1 voiced objection, 16 "you". That is inside the sources' range on both counts. The four example lessons are in docs/examples.

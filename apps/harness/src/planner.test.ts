@@ -201,3 +201,16 @@ describe("fast tier concurrency", () => {
     expect(events.filter((e) => e.type === "beat").map((e) => (e.type === "beat" ? e.index : -1))).toEqual([0, 1]);
   });
 });
+
+describe("style guide", () => {
+  it("is loaded from prompts/style.md into the planner prompt, and the chosen mode rides on the header", async () => {
+    const { PLANNER_SYSTEM } = await import("./planner");
+    expect(PLANNER_SYSTEM).toContain("TWO MODES");
+    expect(PLANNER_SYSTEM).toContain("write-along");
+    const streamer = scripted({ low: block("HEADER", { ...header, style: "write-along" }) + block("BEAT", beat1), high: block("BEAT", beat2) });
+    const events = [];
+    for await (const ev of planLesson("binary search", "plan-3", streamer)) events.push(ev);
+    const h = events[0];
+    expect(h?.type === "header" ? h.header.style : null).toBe("write-along");
+  });
+});

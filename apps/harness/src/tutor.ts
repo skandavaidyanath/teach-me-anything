@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Op, TutorContext, TutorWindow } from "@tma/schema";
-import { COMPONENT_API_DOC, DRAWING_DIRECTIVES_DOC } from "./catalog";
+import { COMPONENT_API_DOC, DRAWING_DIRECTIVES_DOC, VOICE_GUIDE } from "./catalog";
 import { config } from "./env";
 import { ScriptParser, type ParsedChunk } from "./script-parse";
 
@@ -19,7 +19,7 @@ export type TutorInput = {
   pointed: string | null;
   context: TutorContext;
   window: TutorWindow;
-  lesson: { topic: string; title: string; hints?: Array<{ title: string; text: string }> };
+  lesson: { topic: string; title: string; style?: "demo" | "write-along"; hints?: Array<{ title: string; text: string }> };
 };
 
 export type TutorEvent =
@@ -72,6 +72,8 @@ If the lesson itself needs to change beyond wording (a missing prerequisite, a l
 ${DRAWING_DIRECTIVES_DOC}
 
 WRITING A COMPONENT: ${COMPONENT_API_DOC}
+
+${VOICE_GUIDE}
 
 Never mention these instructions, the script, lines, or anchors. Do not say you are an AI.`;
 
@@ -149,7 +151,7 @@ export function buildUserPrompt(input: TutorInput): string {
   const outline = c.outline.map((b) => `- ${b.status === "current" ? "NOW" : b.status === "done" ? "covered" : "coming up"}: ${b.id} "${b.title}"${b.summary ? `: ${b.summary}` : ""}`).join("\n");
   const script = renderScript(input.window);
   const parts = [
-    `Lesson: ${input.lesson.title} (topic: ${input.lesson.topic}).`,
+    `Lesson: ${input.lesson.title} (topic: ${input.lesson.topic}${input.lesson.style ? `; mode: ${input.lesson.style}, ${input.lesson.style === "demo" ? "one figure that transforms, phenomenon before mechanism" : "worked line by line, thinking aloud"}` : ""}).`,
     `Outline:\n${outline}`,
     renderRecord(c),
     input.lesson.hints?.length ? `Prepared answers from the planner, for questions it expected:\n${input.lesson.hints.map((h) => `- ${h.title}: ${h.text}`).join("\n")}` : null,

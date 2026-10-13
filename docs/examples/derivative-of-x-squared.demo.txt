@@ -1,0 +1,162 @@
+[  6s] HEADER "Grow a square, watch the 2x appear" style=demo topic=why the derivative of x squared is 2x
+      calibration: Quick check before we start: have you seen the rule that the derivative of x squared is 2x? {Yes, I use it but don't know why | I've heard of it | No, this is new}
+      - b1 The square of side 3: x squared is the area of a square with side x, so a square of side 3 has area 9, and the question becomes how fast that area grows when the side grows.
+      - b2 Grow the side a little: Growing the side from 3 to 3.1 adds two thin strips, each 3 by 0.1, plus a tiny corner square of 0.1 by 0.1, for a new area of 9.61.
+      - b3 The corner vanishes: As the nudge shrinks from 0.1 to 0.01 to 0.001, the strips shrink in proportion to the nudge but the corner shrinks much faster, so the added area per unit of nudge approaches 6.
+      - b4 Try a different side: With side 5 the same picture gives two strips of length 5, so the area grows at 10 per unit of nudge, twice the side again.
+      - b5 Two strips is 2x: For any side x, the new area is two strips of x times dx plus a negligible corner, so d of x squared over dx is 2x, a label for the two strips you watched.
+
+[ 26s] BEAT 1 "The square of side 3"
+    You can learn the rule that the derivative of x squared is 2x, but the reason is hiding inside a square.
+    [show scene S]
+    This is a square, and its side is 3.
+    [highlight S[1]]
+    Three times three gives an area of 9, right here in the middle.
+    [highlight S[2]]
+    That is all x squared is: the area of a square whose side is x.
+    [clear_highlights]
+    So the derivative asks a picture question: when the side grows, how fast does the area grow?
+    [pin "x squared is an area" :: x squared is the area of a square with side x, so its derivative is how fast that area grows as the side grows.]
+    Before we look, make a prediction about this square.
+    [CHECK choice: Grow the side from 3 to 4. How much area gets added? {1 | 3 | 7} expected ["7","seven"]]
+      ✓ [update S {"items":[{"id":"sq","type":"path","d":"M 60 40 L 260 40 L 260 240 L 60 240 Z"},{"id":"side","type":"text","x":130,"y":262,"text":"side 4","size":14},{"id":"area","type":"text","x":110,"y":145,"text":"area 16, that is 9 plus 7","size":16}]}]
+      ✓ Yes, sixteen minus nine is seven, and next we will see where that seven lives in the picture.
+      ✗ [update S {"items":[{"id":"sq","type":"path","d":"M 60 40 L 260 40 L 260 240 L 60 240 Z"},{"id":"side","type":"text","x":130,"y":262,"text":"side 4","size":14},{"id":"area","type":"text","x":110,"y":145,"text":"area 16, that is 9 plus 7","size":16}]}]
+      ✗ [highlight S[2]]
+      ✗ That is a good guess, but the new square is four by four, so its area is sixteen.
+      ✗ Sixteen minus nine means seven got added, more than the side grew, and that gap is the whole story.
+      ✗ [clear_highlights]
+
+[ 42s] BEAT 2 "Grow the side a little"
+    [clear]
+    [show component P "A growing square" [67 lines of code; state {"side":3,"dx":0,"showLabels":true}; parts ["square","stripRight","stripTop","corner","readout"]]]
+    Here is our square again, side 3, area 9.
+    [highlight P[0]]
+    Asking how fast its area grows is a strange question until you actually grow it, so let's do that.
+    [clear_highlights]
+    Watch the side go from 3 to 3 point 1.
+    [update P {"state":{"dx":0.1}}]
+    [highlight P[1] P[2]]
+    These two green strips are new, and each one is 3 long and 0 point 1 thick.
+    Together they add 2 times 3 times 0 point 1, which is 0 point 6.
+    [clear_highlights]
+    [highlight P[3]]
+    And this tiny red corner is 0 point 1 by 0 point 1, only 0 point 0 1.
+    [clear_highlights]
+    [highlight P[4]]
+    So the new area is 9 plus 0 point 6 plus 0 point 0 1, which is 9 point 6 1, and almost all of the growth lives in the two strips.
+    [clear_highlights]
+    [pin "Growth is two strips and a corner" :: Nudging the side of a 3 by 3 square by 0.1 adds two strips of 3 by 0.1 and one tiny 0.1 by 0.1 corner.]
+    Before we try it, pause and predict what the strips add if the nudge is 0 point 2 instead.
+    [CHECK choice: Grow the side from 3 to 3.2. How much area do the two green strips add? {0.6 | 1.2 | 0.4} expected ["1.2","1.2 square units"]]
+      ✓ [update P {"state":{"dx":0.2}}]
+      ✓ Yes, double the nudge doubles both strips, 2 times 3 times 0 point 2 is 1 point 2.
+      ✗ [update P {"state":{"dx":0.2}}]
+      ✗ [highlight P[1] P[2]]
+      ✗ Good guess, but look at the strips: each is still 3 long and now 0 point 2 thick, so twice as fat as before.
+      ✗ Two of them make 2 times 3 times 0 point 2, which is 1 point 2.
+      ✗ [clear_highlights]
+
+[126s] BEAT 3 "The corner vanishes"
+    [highlight P[3]]
+    But wait, you might say, this red corner is still sitting there, so isn't the answer always a little off?
+    [clear_highlights]
+    Let's set the nudge back to 0 point 1 and watch the bold line at the bottom of the readout.
+    [update P {"state":{"dx":0.1}}]
+    [highlight P[4]]
+    That line divides the added area by the nudge, which tells you how much area you get for each unit the side grows, and that is what how fast means.
+    Right now it reads 6 point 1, a 6 from the two strips and 0 point 1 from the corner.
+    Now let's make the nudge ten times smaller, 0 point 0 1.
+    [update P {"state":{"dx":0.01}}]
+    The strips got thinner, but per unit of nudge they still give exactly 6, while the corner gives only 0 point 0 1, so the line reads 6 point 0 1.
+    Ten times smaller again, 0 point 0 0 1.
+    [update P {"state":{"dx":0.001}}]
+    Now the bold line reads 6 point 0 0 1.
+    [clear_highlights]
+    [highlight P[3]]
+    This corner is now one millionth, so small that the readout rounds it to zero, and the figure draws it wider than it really is so you can still find it.
+    This is the part that surprised me: the strips shrink in step with the nudge, but the corner is the nudge times itself, so it shrinks far faster.
+    [clear_highlights]
+    Notice what I am not saying: the nudge never becomes zero, it only gets small, and the extra bit beyond 6 shrinks right along with it.
+    [pin "The corner washes out" :: As the nudge shrinks, added area divided by nudge goes 6.1, 6.01, 6.001, closing in on 6, because the corner shrinks much faster than the strips.]
+    Before we shrink it once more, pause and decide what the bold line will say.
+    [CHECK choice: Shrink the nudge to 0.0001. What does added area divided by nudge become? {6.0001 | 6.1 | 0.0001} expected ["6.0001","6 point 0 0 0 1"]]
+      ✓ [update P {"state":{"dx":0.0001}}]
+      ✓ Right, 6 point 0 0 0 1, so at side 3 the area grows at a rate of 6.
+      ✗ [update P {"state":{"dx":0.0001}}]
+      ✗ [highlight P[4]]
+      ✗ Good guess, but the readout says 6 point 0 0 0 1.
+      ✗ The added area does get tiny, but we divide by a tiny nudge too, so the strips always give 6 and the corner adds only the nudge itself.
+      ✗ [clear_highlights]
+
+[134s] BEAT 4 "Try a different side"
+    So at side 3 the area grows at 6, but is that 6 a fact about the number 3, or a fact about the picture?
+    Let's change one thing, the side, from 3 to 5, with a nudge of 0 point 1.
+    [update P {"state":{"side":5,"dx":0.1}}]
+    [highlight P[1] P[2]]
+    Each green strip is now 5 long instead of 3, and still 0 point 1 thick.
+    So together the strips add 2 times 5 times 0 point 1, which is 1.
+    [clear_highlights]
+    [highlight P[4]]
+    The bold line reads 10 point 1, ten from the strips and the same 0 point 1 from the corner.
+    Let's shrink the nudge to 0 point 0 0 1.
+    [update P {"state":{"dx":0.001}}]
+    Now it reads 10 point 0 0 1, so at side 5 the area grows at 10.
+    [clear_highlights]
+    Side 3 gave 6 and side 5 gives 10, and both times the answer is twice the side, because there are two strips and each one is as long as the side.
+    [pin "Twice the side, again" :: At side 5 the strips are 5 long, so the area grows at 10, twice the side, just as side 3 gave 6.]
+    Now you predict one before I set it: make the side 4.
+    [CHECK choice: Set the side to 4 and shrink the nudge. The bold line closes in on… {8 | 16 | 4} expected ["8","eight"]]
+      ✓ [update P {"state":{"side":4,"dx":0.001}}]
+      ✓ Yes, it reads 8 point 0 0 1, two strips that are each 4 long.
+      ✗ [update P {"state":{"side":4,"dx":0.001}}]
+      ✗ [highlight P[1] P[2]]
+      ✗ Close, but look at the two green strips: each one is 4 long, so together they give 8 for every unit of nudge.
+      ✗ The readout agrees, 8 point 0 0 1.
+      ✗ [clear_highlights]
+
+[149s] BEAT 5 "Two strips is 2x"
+    But three sides are not every side, so how do we know this always works?
+    Let's go back to the very first question, side 3 grown all the way to 4.
+    [update P {"state":{"side":3,"dx":1}}]
+    [highlight P[1] P[2] P[3]]
+    That seven from the start was right here: two green strips of 3 each, plus this red corner of 1.
+    [clear_highlights]
+    [update P {"state":{"dx":0.3}}]
+    Nothing in that picture cared that the side was 3, so let's call the side x and the nudge d x.
+    [show derivation D "the square, in symbols" (3 lines, 1 shown)]
+    [highlight D[0]]
+    This first line is the picture written in symbols: the new square equals the old x squared plus what got added.
+    [clear_highlights]
+    [highlight P[1] P[2]]
+    The 2 x d x term is these two green strips, each x long and d x thick.
+    [clear_highlights]
+    [highlight P[3]]
+    And the d x squared at the end is this red corner.
+    [clear_highlights]
+    I use d for the nudge because it stands for a tiny difference, and that makes the next step read just like the readout.
+    [update D {"revealed":2,"focus":1}]
+    [highlight D[1] P[4]]
+    Divide the added area by d x and you get 2 x plus d x, which is exactly the 6 point 3 in the bold line right now, 6 plus a nudge of 0 point 3.
+    [clear_highlights]
+    Now let the nudge shrink.
+    [update P {"state":{"dx":0.001}}]
+    [update D {"revealed":3,"focus":2}]
+    [highlight D[2]]
+    The leftover d x shrinks away, and what remains is 2 x, written as d of x squared over d x equals 2 x.
+    [pin "Two strips is 2x" :: Each strip is x long, there are two of them, and the corner vanishes as the nudge shrinks.]
+    [clear_highlights]
+    At the start the rule looked like something to memorize, and it felt arbitrary because the square was hidden: the 2 is two strips and the x is how long each one is.
+    So the derivative of x squared is how fast a square's area grows, and that is two strips as long as its side.
+    Isn't that neat: the whole rule was sitting in the picture all along.
+    One last prediction, and this time decide it before the figure does: a square of side 6.
+    [CHECK choice: Side 6, with the nudge shrinking. How fast does the area grow? {12 | 36 | 6} expected ["12","twelve"]]
+      ✓ [update P {"state":{"side":6,"dx":0.001}}]
+      ✓ Yes, 2 times 6 is 12, and the bold line shows 12 point 0 0 1.
+      ✗ [update P {"state":{"side":6,"dx":0.001}}]
+      ✗ [highlight P[1] P[2]]
+      ✗ Good guess, but 36 is the area itself and 6 is only one strip.
+      ✗ There are two green strips, each 6 long, so the area grows at 12, and the bold line shows 12 point 0 0 1.
+      ✗ [clear_highlights]
+
+[149s] lesson.complete 

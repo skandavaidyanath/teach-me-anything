@@ -204,6 +204,7 @@ export class Session {
       lesson: {
         topic: this.header?.topic ?? this.topic ?? "",
         title: this.header?.title ?? "",
+        ...(this.header?.style ? { style: this.header.style } : {}),
         hints: (this.header?.branches ?? []).map((b) => ({
           title: b.title ?? b.id,
           text: b.ops.flatMap((o) => (o.op === "say" ? [o.text] : [])).join(" "),

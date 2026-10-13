@@ -35,6 +35,14 @@ The point of v0.0 is to feel the rhythm and the interrupts, so push on those.
 
 No blackboard writing yet, and no art direction: figures are the model's own SVG. Beat 1 never carries a figure, so a lesson on something physical shows it moving from part 2. Nothing persists beyond a per-session replay log under `data/local/`. Desktop only. Voice input is typing only.
 
+## Changing how it teaches
+
+The lesson's voice and structure are in `apps/harness/prompts/style.md`, a plain text file both models read: how a lesson opens, when the learner predicts, how names and symbols arrive, the two modes (demo, write-along), and the voice. Edit it and restart the harness. To read what the Planner writes for a topic without the browser:
+
+```
+cd apps/harness && node scripts/dump-lesson.mjs "why is the sky blue"
+```
+
 ## Layout
 
 ```

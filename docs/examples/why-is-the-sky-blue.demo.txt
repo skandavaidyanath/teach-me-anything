@@ -1,0 +1,170 @@
+[  6s] HEADER "Why the sky is blue, and why sunsets are red" style=demo topic=why is the sky blue
+      calibration: Quick check before we start: what do you think makes the sky blue? {It reflects the blue ocean | Air scatters blue light more than red | I have no idea}
+      - b1 The ocean answer is wrong: Sunlight is white, a mix of every colour from red to violet, and the sky is blue even over deserts, so it is not reflecting the ocean.
+      - b2 Watch air bounce light: When sunlight passes through air, tiny molecules knock some of it sideways, and that sideways light is mostly blue, because short wavelengths scatter far more than long ones.
+      - b3 Look away from the sun: You see the sky's colour by looking away from the sun, so what reaches your eye from the sky is only the scattered light, and scattered light is blue.
+      - b4 Why not violet?: Violet scatters even more than blue, but sunlight has less violet in it and your eyes are less sensitive to it, so the mix you see looks sky blue.
+      - b5 Sunset: a longer path: At sunset the light crosses far more air, so most of the blue is scattered out before it reaches you, and the direct sunlight that is left is red and orange.
+      - b6 Settling the hook: The sky is blue because air scatters short wavelengths much more strongly, roughly as one over wavelength to the fourth power, and the same rule makes sunsets red.
+
+[ 29s] BEAT 1 "The ocean answer is wrong"
+    [show scene S]
+    A common answer is that the sky is blue because it reflects the ocean.
+    This is the Sahara, a thousand kilometres from any sea, and its sky is deep blue.
+    [highlight S[2]]
+    So the ocean can't be the reason, can it?
+    [clear_highlights]
+    [highlight S[0] S[3]]
+    Let's look at what's coming out of the sun right here.
+    [show array_row L "sunlight"]
+    [clear_highlights]
+    Sunlight is all of these colours mixed together, and the mix looks white to you.
+    [highlight L[4]]
+    Yet the sky shows you mostly this one, the blue.
+    [pin "Sunlight is every colour" :: White sunlight holds red through violet, and the sky is blue even far from any ocean.]
+    [clear_highlights]
+    Before we look, pause and decide where the other colours went.
+    [CHECK choice: The sky shows mostly blue. What happened to the red, yellow and green in the sunlight? {They kept going straight | The air absorbed them | The ground soaked them up} expected ["They kept going straight","kept going straight","straight"]]
+      ✓ [update S {"items":[{"id":"sun","type":"circle","cx":70,"cy":60,"r":28,"label":"the sun"},{"id":"dunes","type":"path","d":"M 0 230 Q 80 190 160 225 Q 250 260 330 215 Q 380 195 420 220"},{"id":"cap","type":"text","x":150,"y":268,"text":"the Sahara, 1000 km from any sea","size":13},{"id":"ray","type":"arrow","x1":95,"y1":75,"x2":330,"y2":195,"role":"neutral","label":"red, yellow, green go straight on"},{"id":"side","type":"arrow","x1":200,"y1":130,"x2":200,"y2":200,"role":"velocity","label":"some blue knocked sideways"}]}]
+      ✓ Right, most of the light carries straight on, and only a little gets knocked sideways, mostly the blue.
+      ✗ [update S {"items":[{"id":"sun","type":"circle","cx":70,"cy":60,"r":28,"label":"the sun"},{"id":"dunes","type":"path","d":"M 0 230 Q 80 190 160 225 Q 250 260 330 215 Q 380 195 420 220"},{"id":"cap","type":"text","x":150,"y":268,"text":"the Sahara, 1000 km from any sea","size":13},{"id":"ray","type":"arrow","x1":95,"y1":75,"x2":330,"y2":195,"role":"neutral","label":"red, yellow, green go straight on"},{"id":"side","type":"arrow","x1":200,"y1":130,"x2":200,"y2":200,"role":"velocity","label":"some blue knocked sideways"}]}]
+      ✗ [highlight S[3]]
+      ✗ That's a good guess, but nothing is lost: if air ate the red, the noon sun would look blue, and it looks white.
+      ✗ Most of the light keeps going straight, and only a little blue gets knocked sideways toward you.
+      ✗ [clear_highlights]
+
+[ 68s] BEAT 2 "Watch air bounce light"
+    So if the sky is not copying the ocean, where does its blue come from?
+    [show component P "Sunlight crossing the air" [88 lines of code; state {"pathLength":1,"lookAt":"none","showBars":false,"running":true}; parts ["sun","air","beam","eye","swatch","bars"]]]
+    [highlight P[0]]
+    On the left is the sun, sending out white light, a mix of every colour.
+    [clear_highlights]
+    [highlight P[1]]
+    This dashed box is a slab of air, full of molecules far too small to see.
+    [clear_highlights]
+    [highlight P[2]]
+    Watch the coloured dots along this line: most fly straight through the air.
+    [clear_highlights]
+    But every so often, a molecule knocks one off sideways, and it flies away up or down.
+    Keep watching the ones that get knocked away, and pause before you answer.
+    [CHECK choice: Which colour do you think gets knocked sideways most often? {Red | Blue | All colours equally} expected ["Blue","blue"]]
+      ✓ [update P {"state":{"showBars":true}}]
+      ✓ [highlight P[5]]
+      ✓ Right, look at the bars: blue gets knocked sideways about five times as often as red.
+      ✓ This bouncing is called scattering, and the shorter the wavelength, the more it happens.
+      ✓ [pin "Air scatters blue most" :: Tiny air molecules knock short-wavelength blue light sideways far more often than long-wavelength red.]
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"showBars":true}}]
+      ✗ [highlight P[5]]
+      ✗ That is a fair guess, but look at the bars: blue and violet get knocked sideways far more than red.
+      ✗ This bouncing is called scattering, and short wavelengths like blue scatter about five times as often as red.
+      ✗ [pin "Air scatters blue most" :: Tiny air molecules knock short-wavelength blue light sideways far more often than long-wavelength red.]
+      ✗ [clear_highlights]
+
+[145s] BEAT 3 "Look away from the sun"
+    But scattered blue flies off in every direction, so how does any of it reach your eye?
+    [clear S]
+    [update P {"state":{"lookAt":"sun"}}]
+    [highlight P[3]]
+    This is your eye, and right now it is looking straight back at the sun.
+    [clear_highlights]
+    [highlight P[4]]
+    This box up here shows what your eye receives: nearly white, with a touch of yellow.
+    That is the light that came straight through without being knocked anywhere.
+    [clear_highlights]
+    Now let's turn your eye up, away from the sun, toward the air itself.
+    Before I turn it, what colour do you think the box will show?
+    [CHECK choice: Your eye looks up into the air, away from the sun. What colour fills the box? {Blue | White | Yellow} expected ["Blue","blue"]]
+      ✓ [update P {"state":{"lookAt":"sky"}}]
+      ✓ [highlight P[4]]
+      ✓ Right, the only light coming from up there is light the air knocked toward you, and that light is mostly blue.
+      ✓ [pin "The sky is scattered light" :: Look away from the sun and the only light reaching you is light the air redirected, which is mostly blue.]
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"lookAt":"sky"}}]
+      ✗ [highlight P[4]]
+      ✗ Good guess, but no direct sunlight comes from up there, only light the air knocked toward you.
+      ✗ Knocked light is mostly blue, so the box turns blue, and so does the sky.
+      ✗ [pin "The sky is scattered light" :: Look away from the sun and the only light reaching you is light the air redirected, which is mostly blue.]
+      ✗ [clear_highlights]
+
+[154s] BEAT 4 "Why not violet?"
+    [highlight P[5]]
+    But look at the bars again: violet gets knocked sideways even more than blue.
+    So shouldn't the sky be violet?
+    [clear_highlights]
+    [highlight L[5]]
+    Here is the catch: the sun sends out only about half as much violet as blue.
+    [clear_highlights]
+    [show array_row N "light knocked toward you"]
+    Each colour's share is how often it scatters, times how much of it the sun sends.
+    [highlight N[0]]
+    Blue scatters five times as often as red, with nine tenths of the supply.
+    [clear_highlights]
+    [highlight N[1]]
+    Violet scatters eight and a half times as often, with only half the supply.
+    [clear_highlights]
+    Do the multiplication in your head, and pause before you pick.
+    [CHECK choice: Which colour does the air send toward you more of? {Blue | Violet | Exactly equal} expected ["Blue","blue"]]
+      ✓ [update N {"values":["blue: about 4.5","violet: about 4.3"]}]
+      ✓ [highlight N[0]]
+      ✓ Right, blue edges ahead, and your eyes respond weakly to violet anyway, so the mix you see looks sky blue.
+      ✓ [pin "Why not violet" :: Sunlight holds less violet and your eyes barely register it, so the scattered mix looks blue.]
+      ✓ [clear_highlights]
+      ✗ [update N {"values":["blue: about 4.5","violet: about 4.3"]}]
+      ✗ [highlight N[0]]
+      ✗ Close, but violet's small supply cancels its head start: about four point three against blue's four and a half.
+      ✗ On top of that your eyes respond weakly to violet, so the mix you see looks sky blue.
+      ✗ [pin "Why not violet" :: Sunlight holds less violet and your eyes barely register it, so the scattered mix looks blue.]
+      ✗ [clear_highlights]
+
+[161s] BEAT 5 "Sunset: a longer path"
+    So if air makes the sky blue, why does it all go orange and red at sunset?
+    [update P {"state":{"lookAt":"sun","pathLength":1}}]
+    [highlight P[1]]
+    At noon the sun is overhead, and its light crosses this much air to reach you.
+    [clear_highlights]
+    [highlight P[4]]
+    Your eye is looking at the sun again, so the box shows what came straight through, nearly white.
+    [clear_highlights]
+    At sunset the sun sits on the horizon, and its light skims through about eight times as much air.
+    Let's widen this slab eight times, but first, which way do you think the colour goes?
+    [CHECK choice: With eight times as much air in the way, what happens to the light that comes straight through? {It turns bluer | It turns redder | It stays white} expected ["It turns redder","redder"]]
+      ✓ [update P {"state":{"pathLength":8}}]
+      ✓ [highlight P[4]]
+      ✓ Right, along that long path most of the blue gets knocked out, so what reaches you is the red and orange that is left.
+      ✓ [pin "Sunset is what's left" :: Light crossing a long path of air loses most of its blue to scattering, so the sun looks red and orange.]
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"pathLength":8}}]
+      ✗ [highlight P[4]]
+      ✗ Watch the box turn orange: along that long path the air knocks out most of the blue.
+      ✗ Red scatters least, so red is what survives the trip to you.
+      ✗ [pin "Sunset is what's left" :: Light crossing a long path of air loses most of its blue to scattering, so the sun looks red and orange.]
+      ✗ [clear_highlights]
+
+[170s] BEAT 6 "Settling the hook"
+    So where did all that blue go?
+    [highlight P[1]]
+    It went sideways out of this slab, lighting up the sky over everyone the beam passed.
+    [clear_highlights]
+    [update P {"state":{"pathLength":1,"lookAt":"sky"}}]
+    One rule did both jobs: short wavelengths scatter much more than long ones.
+    [show latex F \text{scattering} \propto \frac{1}{\lambda^{4}}]
+    [highlight F]
+    We write it like this, where lambda, this Greek letter, is the wavelength.
+    Red light is about 700 nanometres long and blue about 470, so red is one and a half times longer.
+    [clear_highlights]
+    [highlight P[5]]
+    One and a half to the fourth power is about five, the same five times you saw in these bars.
+    [clear_highlights]
+    [pin "Scattering goes as one over wavelength to the fourth" :: Halve the wavelength and air scatters it sixteen times as much.]
+    [highlight P[4]]
+    So the ocean answer had it backwards: the sea and sky match because the sea partly reflects the sky.
+    Notice what I am not saying: air is not blue, it is clear, and it only redirects blue toward you.
+    [clear_highlights]
+    Now you can predict that higher up, with less air above you, the sky darkens toward black.
+    A clear gas paints the whole sky blue and hands you red at the end of the day, isn't that neat?
+    [CHECK choice: Want to go deeper? {Why clouds are white | Why Mars has blue sunsets | I'm good for now} expected ["Why clouds are white","Why Mars has blue sunsets","I'm good for now"]]
+      ✓ Then let's keep this slab of air on the board and change what is inside it.
+      ✗ Then let's keep this slab of air on the board and change what is inside it.
+
+[170s] lesson.complete 

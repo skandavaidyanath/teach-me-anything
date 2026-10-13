@@ -1,0 +1,203 @@
+[  6s] HEADER "Where to sit in the circle of death" style=write-along topic=the Josephus problem: people in a circle, every second person is eliminated, where should you stand to be the last one left
+      calibration: Before we start: have you heard of the Josephus problem? {Yes, I know the answer | I've heard of it | Never}
+      - b1 Seven in a circle: With seven people in a circle, each killing the person to their left in turn, working it by hand shows that seat seven survives, which is not the seat most people guess.
+      - b2 Gather the data: Working the small circles from one to eight people by hand gives a table of survivors that resets to seat one at one, two, four, and eight, and climbs by two in between.
+      - b3 The pattern: Write the number of people as the largest power of two that fits plus a leftover L; the survivor is seat two times L plus one, which checks out on forty-one people as seat nineteen.
+      - b4 Why powers of two reset: When the number of people is a power of two, each full lap halves the circle and hands the sword back to seat one, so seat one survives; with L extra people, after L kills the circle is a power of two and the person holding the sword, at seat two L plus one, is the survivor.
+      - b5 The binary trick: In binary, the survivor's seat comes from moving the leading one of the count to the end, so forty-one, one zero one zero zero one, becomes one zero zero one one, which is nineteen.
+
+[ 31s] BEAT 1 "Seven in a circle"
+    Forty-one soldiers stand in a circle, and each one in turn kills the person next to them, until only one is left.
+    Where would you stand to be that last one?
+    [show array_row S "seats"]
+    Forty-one is a lot, so let's start with seven people, sitting in these seats, with seat seven next to seat one again.
+    [highlight S[0]]
+    Seat one holds the sword first, and a lot of people guess that is the safe place to be.
+    [clear_highlights]
+    [show derivation D "seven people" (5 lines, 1 shown)]
+    Whether or not you know the answer already, let's work it by hand, one line per kill.
+    [update D {"revealed":2,"focus":1}]
+    [highlight S[1] S[3] S[5]]
+    This line is the first lap: one kills two, three kills four, five kills six, and each time the sword passes on.
+    Notice that every even seat is gone after one lap.
+    [update D {"revealed":3,"focus":2}]
+    [highlight S[0]]
+    Now seven has the sword, and the circle wraps, so seven kills seat one, the seat everyone thought was safe.
+    [clear_highlights]
+    [pin "Work it by hand" :: Each living person kills the next living person, and the sword passes on, wrapping around the circle.]
+    [highlight S[2] S[4] S[6]]
+    Three, five, and seven are left, and three holds the sword, so pause here and decide who walks away.
+    [CHECK choice: Three, five and seven remain, and seat three has the sword. Who survives? {Seat 3 | Seat 5 | Seat 7} expected ["Seat 7","7","seven","seat seven"]]
+      ✓ [update D {"revealed":5,"focus":4}]
+      ✓ [highlight S[6]]
+      ✓ Yes: three kills five, then seven kills three, so seat seven is the survivor, and not seat one.
+      ✓ [clear_highlights]
+      ✗ [update D {"revealed":4,"focus":3}]
+      ✗ [highlight D[3]]
+      ✗ That is a good guess, but follow the sword: three kills five, and the sword passes to seven.
+      ✗ [update D {"revealed":5,"focus":4}]
+      ✗ [highlight S[6]]
+      ✗ Then seven kills three, so seat seven survives, the very last seat in the circle.
+      ✗ [clear_highlights]
+
+[ 33s] BEAT 2 "Gather the data"
+    Seat seven survived with seven people, so you might think the last seat is always the safe one.
+    I don't know if that's true, so let's just try every circle from one person upward.
+    [show derivation D "who survives" (8 lines, 1 shown)]
+    With one person, there's nobody to kill, so seat one survives.
+    [update D {"revealed":2,"focus":1}]
+    With two, seat one kills seat two, and seat one is left.
+    [update D {"revealed":3,"focus":2}]
+    With three, one kills two, then three kills one, so seat three wins.
+    [update D {"revealed":4,"focus":3}]
+    With four, the sword goes all the way round and seat one survives again.
+    [highlight D[0] D[1] D[3]]
+    That surprised me the first time: seat one is back, so the answer is not always the last seat.
+    [clear_highlights]
+    [update D {"revealed":5,"focus":4}]
+    Five people gives seat three.
+    [update D {"revealed":6,"focus":5}]
+    Six people gives seat five.
+    [update D {"revealed":7,"focus":6}]
+    And seven gives seat seven, the circle you already worked out.
+    [highlight D[3] D[4] D[5] D[6]]
+    You might already notice something: after the reset at four, the winning seat climbs one, three, five, seven, going up by two each time.
+    [pin "Reset, then climb by two" :: The survivor drops back to seat one at certain sizes and goes up by two with each extra person.]
+    [clear_highlights]
+    Before we look at eight people, pause and decide where the survivor sits.
+    [CHECK choice: With eight people in the circle, which seat survives? {Seat 1 | Seat 7 | Seat 8} expected ["Seat 1","1","seat one","one"]]
+      ✓ [update D {"revealed":8,"focus":7}]
+      ✓ [highlight D[0] D[1] D[3] D[7]]
+      ✓ Right, seat one resets again at eight, just as it did at one, two, and four.
+      ✓ [clear_highlights]
+      ✗ [update D {"revealed":8,"focus":7}]
+      ✗ [highlight D[7]]
+      ✗ That's a good guess, but the climb by two would land on seat nine, and there is no seat nine.
+      ✗ Instead, the first lap removes two, four, six, and eight, the sword is back at seat one with four people left, and four people means seat one wins.
+      ✗ [clear_highlights]
+
+[144s] BEAT 3 "The pattern"
+    [highlight D[0] D[1] D[3] D[7]]
+    The resets happened at one, two, four, and eight, and each of those is double the one before, the powers of two.
+    [clear_highlights]
+    So let's write each count as the biggest power of two that fits, plus whatever is left over.
+    [show derivation R "the pattern" (7 lines, 1 shown)]
+    [highlight R[0]]
+    Seven is four plus three, so four is the biggest power of two that fits and three people are left over.
+    [clear_highlights]
+    Each extra person past a reset moved the survivor up two seats, so let's try two times the leftover, plus one.
+    [update R {"revealed":2,"focus":1}]
+    [highlight R[1] D[6]]
+    Two times three plus one is seven, and check that against the table: seven people, seat seven.
+    [clear_highlights]
+    [update R {"revealed":3,"focus":2}]
+    [highlight R[2] D[5]]
+    Run it fast on six: four plus two, two times two plus one is five, and the table says seat five.
+    [clear_highlights]
+    [highlight D[3] D[7]]
+    At a reset the leftover is zero, and two times zero plus one is seat one, which is why the resets land right there.
+    [clear_highlights]
+    [update R {"revealed":4,"focus":3}]
+    Now let's swap the numbers for symbols in the same places: n people is two to the m, the biggest power of two that fits, plus a leftover L.
+    [update R {"revealed":5,"focus":4}]
+    And the survivor sits in seat two L plus one, with L standing exactly where the three stood.
+    [pin "The survivor's seat" :: Write the count as the biggest power of two that fits plus a leftover L, and the survivor sits in seat 2L + 1.]
+    [update R {"revealed":6,"focus":5}]
+    [highlight R[5]]
+    Back to the forty-one soldiers: sixty-four is too big, so the power of two is thirty-two, and nine are left over.
+    Before you look, work out the next line yourself.
+    [clear_highlights]
+    [CHECK choice: Forty-one is thirty-two plus nine. Which seat survives? {Seat 9 | Seat 19 | Seat 41} expected ["Seat 19","19","nineteen","seat nineteen"]]
+      ✓ [update R {"revealed":7,"focus":6}]
+      ✓ [highlight R[6]]
+      ✓ Yes, two times nine plus one is nineteen, so in the circle of forty-one you want seat nineteen.
+      ✓ [clear_highlights]
+      ✗ [update R {"revealed":7,"focus":6}]
+      ✗ [highlight R[6]]
+      ✗ Good guess, but nine is only the leftover, and each leftover person pushes the survivor two seats, not one.
+      ✗ Two times nine plus one is nineteen, so seat nineteen survives.
+      ✗ [clear_highlights]
+
+[161s] BEAT 4 "Why powers of two reset"
+    But why would a power of two send the win back to seat one?
+    [clear D,R]
+    [show array_row E "eight seats"]
+    [show derivation W "why it works" (8 lines, 1 shown)]
+    Let's take eight people, a power of two, with the sword starting at seat one.
+    [update W {"revealed":2,"focus":1}]
+    [highlight E[1] E[3] E[5] E[7]]
+    On the first lap every even seat goes, and because seat seven kills seat eight last, the sword comes back round to seat one.
+    [update W {"revealed":3,"focus":2}]
+    [highlight E[2] E[6]]
+    Four left is even again, so the second lap takes three and seven, and once more the sword ends at seat one.
+    [update W {"revealed":4,"focus":3}]
+    [highlight E[4]]
+    [highlight E[0]]
+    With two left, seat one kills five and walks away.
+    And that is the whole trick: a power of two halves into a power of two every lap, so the sword always comes home to seat one.
+    [pin "Powers of two come home" :: In a power-of-two circle every lap hands the sword back to seat one, so after L kills the person holding the sword, at seat 2L + 1, survives.]
+    [clear_highlights]
+    Notice what I am not saying: seat one is not safe in general, only when the circle is exactly a power of two.
+    Now the leftover: seven is four plus three, so let's make three kills on the seven seats and stop.
+    [update W {"revealed":5,"focus":4}]
+    [highlight S[1] S[3] S[5]]
+    One kills two, three kills four, five kills six, right here on the seven-seat row from the start.
+    [update W {"revealed":6,"focus":5}]
+    [highlight S[6]]
+    Four people are left, a power of two, and seat seven holds the sword, so seat seven plays the part of seat one and wins.
+    Each kill moved the sword two seats along, so after three kills it sits at two times three plus one.
+    [clear_highlights]
+    [update W {"revealed":7,"focus":6}]
+    [highlight W[6]]
+    Forty-one is thirty-two plus nine, so let's make nine kills, which takes out seats two, four, all the way up to eighteen.
+    Pause here and decide who holds the sword when thirty-two people are left.
+    [clear_highlights]
+    [CHECK choice: After nine kills in the circle of forty-one, thirty-two people remain. Who holds the sword? {Seat 18 | Seat 19 | Seat 1} expected ["Seat 19","19","nineteen","seat nineteen"]]
+      ✓ [update W {"revealed":8,"focus":7}]
+      ✓ [highlight W[7]]
+      ✓ Right, seat nineteen holds the sword with thirty-two left, so it plays the part of seat one and survives.
+      ✓ [clear_highlights]
+      ✗ [update W {"revealed":8,"focus":7}]
+      ✗ [highlight W[7]]
+      ✗ Close, but the ninth kill is seat seventeen killing seat eighteen, and the sword passes to the next living person, seat nineteen.
+      ✗ With thirty-two left and the sword at nineteen, seat nineteen plays the part of seat one and survives.
+      ✗ [clear_highlights]
+
+[176s] BEAT 5 "The binary trick"
+    [clear]
+    [show derivation BN "in binary" (7 lines, 1 shown)]
+    The rule needs the biggest power of two that fits, and for a big count that feels like guesswork.
+    [highlight BN[0]]
+    So let's write forty-one in binary: thirty-two plus eight plus one is one zero one zero zero one, and the leading one is the thirty-two.
+    [clear_highlights]
+    [update BN {"revealed":2,"focus":1}]
+    Drop that leading one and what is left, zero one zero zero one, is nine, the leftover L.
+    [update BN {"revealed":3,"focus":2}]
+    Doubling in binary shifts every digit left, and adding one puts a one on the end, which gives one zero zero one one.
+    [update BN {"revealed":4,"focus":3}]
+    [highlight BN[3]]
+    Sixteen plus two plus one is nineteen, the same seat the rule gave.
+    So the whole calculation is one move: take the leading one off the front of the count and put it on the end.
+    [pin "Move the leading one" :: Write the count in binary and move its leading 1 to the end, and the result is the survivor's seat.]
+    [clear_highlights]
+    [update BN {"revealed":5,"focus":4}]
+    Run it fast on seven: one one one, move the front one to the back, and it is still one one one, seat seven, the circle you worked by hand.
+    [highlight BN[0] BN[3]]
+    So, back to the forty-one soldiers: seat one, where the sword starts, is killed by seat forty-one at the end of the very first lap.
+    Striking first felt safe, but it only pays off when the circle is a power of two, and the last seat only wins when the count is one less than a power of two, like seven.
+    In a circle of forty-one, you want seat nineteen, and now you can name the safe seat for any circle without anyone dying, which I think is really neat.
+    [clear_highlights]
+    [update BN {"revealed":6,"focus":5}]
+    Thirteen is eight plus four plus one, one one zero one, so pause here and decide where you would sit.
+    [CHECK choice: Thirteen people, one one zero one in binary. Which seat survives? {Seat 5 | Seat 11 | Seat 13} expected ["Seat 11","11","eleven","seat eleven"]]
+      ✓ [update BN {"revealed":7,"focus":6}]
+      ✓ [highlight BN[6]]
+      ✓ Yes, one zero one one is eleven, and two times five plus one agrees.
+      ✓ [clear_highlights]
+      ✗ [update BN {"revealed":7,"focus":6}]
+      ✗ [highlight BN[6]]
+      ✗ Good guess, but five is only the leftover, and moving the front one of one one zero one to the back gives one zero one one.
+      ✗ That is eight plus two plus one, seat eleven, the same as two times five plus one.
+      ✗ [clear_highlights]
+
+[176s] lesson.complete 
