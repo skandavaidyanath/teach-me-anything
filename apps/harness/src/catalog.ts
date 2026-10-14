@@ -18,7 +18,7 @@ export const VOICE_GUIDE = (() => {
   return at === -1 ? STYLE_GUIDE : STYLE_GUIDE.slice(at);
 })();
 
-export const LESSON_STYLES = ["demo", "write-along"] as const;
+export const LESSON_STYLES = ["demo", "write-along", "case"] as const;
 export type LessonStyle = (typeof LESSON_STYLES)[number];
 
 export const COMPONENT_API_DOC = `A component's code is the body of an HTML page: markup (SVG or divs), a <style>, and one <script>. It runs in a frame of the given width and height with no network and no libraries, so draw with SVG and plain DOM. Keep it under about 120 lines. The script gets window.tma:

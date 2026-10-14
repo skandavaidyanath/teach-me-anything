@@ -205,7 +205,9 @@ describe("fast tier concurrency", () => {
 describe("style guide", () => {
   it("is loaded from prompts/style.md into the planner prompt, and the chosen mode rides on the header", async () => {
     const { PLANNER_SYSTEM } = await import("./planner");
-    expect(PLANNER_SYSTEM).toContain("TWO MODES");
+    expect(PLANNER_SYSTEM).toContain("THREE MODES");
+    expect(PLANNER_SYSTEM).toContain("case (Think School)");
+    expect(PLANNER_SYSTEM).toContain("Preempt the learner");
     expect(PLANNER_SYSTEM).toContain("write-along");
     const streamer = scripted({ low: block("HEADER", { ...header, style: "write-along" }) + block("BEAT", beat1), high: block("BEAT", beat2) });
     const events = [];

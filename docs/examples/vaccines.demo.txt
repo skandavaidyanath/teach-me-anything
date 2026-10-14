@@ -1,0 +1,185 @@
+[  9s] HEADER "Why a shot of nothing protects you for years" style=demo topic=how does a vaccine train the immune system
+      calibration: Quick check before we start: have you heard of antibodies or white blood cells before? {Yes, I know roughly what they do | I've heard the words | No, not really}
+      - b1 A vaccine contains no working germ: Most people think a vaccine fights the disease, but it holds no live, working virus and does nothing to any germ; on day one it changes nothing you could measure, yet weeks later you are protected.
+      - b2 The first meeting is slow: When a new virus arrives, the few immune cells that happen to fit its shape take about ten to fourteen days to find it, multiply, and make enough antibodies, while the virus doubles every few hours.
+      - b3 Show the shape, skip the danger: A vaccine shows the immune system only the virus's surface shape, such as the spike protein, so the matching cells are found and multiplied with no infection doing damage in the meantime.
+      - b4 Memory cells stay behind: After the response fades, a much larger standing population of memory cells that fit that shape remains, so the starting count for the next encounter is hundreds of times higher.
+      - b5 The second meeting is a race you win: On real exposure, memory cells respond in about two to three days instead of two weeks, and antibodies rise faster and higher, stopping the virus before it multiplies enough to make you sick.
+      - b6 Back to the shot of nothing: A vaccine is a rehearsal, not a weapon: it shifts the starting line of the race, which is why boosters top up memory and why a virus that changes its shape can partly slip past it.
+
+[ 34s] BEAT 1 "A vaccine contains no working germ"  [9 sentences, avg 18.6 words, max 23, key 1]
+    [show text_card C "Inside one flu shot" :: No live, working virus. / A small amount of virus surface protein. / Water, a little salt, a little sugar. / About half a millilitre in total.]
+    Here is what is actually inside a flu shot, and there is no working virus on that list.
+    [highlight C]
+    ★ Most people say a vaccine works by fighting the disease, but nothing in this card can fight anything.
+    [clear_highlights]
+    [show array_row A "germs killed by the shot"]
+    This row counts the germs the shot kills, and it reads zero on the first day, the next day, and a month later.
+    [show array_row B "protected?"]
+    Now look at this row, because a month later you are protected anyway.
+    [highlight A[2] B[2]]
+    slow· So a shot that kills nothing still leaves you protected a month later, and I know that sounds backwards.
+    [pause]
+    [clear_highlights]
+    [pin "The shot kills nothing" :: A vaccine holds no working germ and destroys no germ, yet you end up protected.]
+    Before we go on, make a guess about what the shot is changing during that month.
+    [CHECK choice: The shot kills no germs. What changes during that month? {The shot's ingredients stay in your blood and guard it | Your own body changes in response to what it saw | Nothing changes; the protection is a myth} expected ["Your own body changes in response to what it saw","your body changes","body"]]
+      ✓ [highlight B[2]]
+      ✓ Right, the shot is gone within days, so the change has to be in you, and that is what we watch next.
+      ✓ [clear_highlights]
+      ✗ [highlight B[2]]
+      ✗ That is a good guess, but the shot's protein is cleared within days, and protection still shows up a month later.
+      ✗ So the change has to be in your own body, and that is what we watch next.
+      ✗ [clear_highlights]
+
+[ 69s] BEAT 2 "The first meeting is slow"  [14 sentences, avg 15.8 words, max 26, key 1]
+    So if the shot fights nothing, what is it for?
+    Before we answer that, let's watch what happens when you catch a virus you have never met.
+    [show component P "The race inside your body" [75 lines of code; state {"scenario":"first","day":0,"startCells":3}; parts ["virusLine","antibodyLine","cells","threshold","dayMarker"]]]
+    This red line is the amount of virus in your body, and the clock starts on the day you breathe it in.
+    [highlight P[2]]
+    Over here are the immune cells that happen to fit this virus's shape, and right now you have about three of them.
+    [clear_highlights]
+    Let's run the clock four days.
+    [update P {"state":{"day":4}}]
+    [highlight P[0]]
+    The virus is climbing fast, because it doubles every few hours.
+    Now three more days.
+    [update P {"state":{"day":7}}]
+    [highlight P[3]]
+    ★ It is about to cross this dashed line, which is where you start feeling sick.
+    [clear_highlights]
+    You're probably thinking your immune system should be all over this by now.
+    But those three cells first have to bump into the virus, and then copy themselves over and over before they can make antibodies, the green line.
+    [pin "The first meeting is slow" :: A few matching cells must find the virus and multiply before antibodies rise, while the virus doubles every few hours.]
+    Pause here and make a guess before we run the clock.
+    [pause]
+    [CHECK choice: On a first meeting, around which day do the antibodies finally rise high enough to turn the virus around? {Around day 3 | Around day 12 | Around day 30} expected ["Around day 12","day 12","12"]]
+      ✓ [update P {"state":{"day":14}}]
+      ✓ Right, the green line shoots up near day twelve and the red line turns over, but only after a week of you being sick.
+      ✗ [update P {"state":{"day":14}}]
+      ✗ [highlight P[1] P[2]]
+      ✗ That is a good guess, but watch: the green line only shoots up near day twelve, once those few cells have multiplied into thousands.
+      ✗ Only then does the red line turn over, after you have already been sick for days.
+      ✗ [clear_highlights]
+
+[ 91s] BEAT 3 "Show the shape, skip the danger"  [12 sentences, avg 20.3 words, max 31, key 1]
+    So the problem is not that your immune system can't win, it is that it needs two weeks, and the virus uses those two weeks to make you sick.
+    The question you should be asking is whether those cells could do their slow searching without the virus around at all.
+    [highlight C]
+    Look back at the card from the start, and the one line that matters is the virus surface protein.
+    For a coronavirus, that is the spike protein, the knob on the outside that the matching cells recognise.
+    [clear_highlights]
+    Let's reset the clock, with the same three matching cells, and this time show them only that shape.
+    [update P {"state":{"scenario":"vaccine","day":0,"startCells":3}}]
+    Now run it a week.
+    [update P {"state":{"day":7}}]
+    [highlight P[3]]
+    ★ There is no red line this time, because a protein with no virus attached cannot copy itself, so nothing ever comes near the sick line.
+    [clear_highlights]
+    You might be wondering whether a harmless scrap of protein is enough to wake those cells up at all.
+    [pin "Show the shape, skip the danger" :: A vaccine shows only the virus's surface shape, so the matching cells can be found and multiplied while no infection grows.]
+    [highlight P[2]]
+    Before we run the clock to day fourteen, decide what happens to the cell count right here.
+    [pause]
+    [CHECK choice: With only the shape shown, what happens to the matching cells by day fourteen? {They stay at about three, since there is no real virus | They multiply into hundreds, just like with the real virus | They multiply, but never make antibodies} expected ["They multiply into hundreds, just like with the real virus","multiply into hundreds","hundreds"]]
+      ✓ [update P {"state":{"day":14}}]
+      ✓ Right, the cells see the shape they fit and multiply into hundreds, and the green antibody line climbs, all without a single sick day.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"day":14}}]
+      ✗ [highlight P[1] P[2]]
+      ✗ That is a good guess, but watch: the count climbs into the hundreds and the green line rises, because these cells react to the shape, not to whether it is dangerous.
+      ✗ The shape alone is enough to start the whole response, with no virus doing damage in the meantime.
+      ✗ [clear_highlights]
+
+[174s] BEAT 4 "Memory cells stay behind"  [11 sentences, avg 21.8 words, max 26, key 1]
+    But here's the objection you should be raising: the antibodies from a shot fade within a few months, so how can it protect you for years?
+    [update P {"state":{"scenario":"vaccine","day":21,"startCells":3}}]
+    [highlight P[2]]
+    Look at this box at the end of the rehearsal, where the three cells that fit the shape have copied themselves into hundreds.
+    [clear_highlights]
+    [highlight P[1]]
+    Once the job is done, most of those cells die off, and the antibodies on this green line drift away over the next few months.
+    [clear_highlights]
+    ★ But not all of them die, because a crowd of memory cells stays behind for years, still fitted to that one shape.
+    So let's reset the clock to day zero and start a new race from what the vaccine left behind.
+    [update P {"state":{"scenario":"second","day":0,"startCells":300}}]
+    [highlight P[2]]
+    slow· The box starts full this time, and the count is hundreds of times higher than the three we began with before.
+    [pause]
+    Notice what I'm not saying: I'm not saying antibodies stay high forever, because they don't; what stays is this crowd of cells that can make them.
+    [clear_highlights]
+    [pin "Memory sets the starting line" :: After the response fades, a large crowd of memory cells that fit the shape stays, so the next race starts hundreds of times ahead.]
+    Pause and decide: the virus is the same and the dashed sick line is the same, so what has the vaccine actually moved?
+    [CHECK choice: What has the vaccine changed about the next race? {How many fitting cells you start with | How fast the virus doubles | Where the sick line sits} expected ["How many fitting cells you start with","starting cells","how many cells you start with"]]
+      ✓ [highlight P[2]]
+      ✓ Right, the virus and the sick line haven't moved at all, and only your starting count has.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"startCells":3}}]
+      ✗ [highlight P[2]]
+      ✗ That is a good guess, but watch the box: here it is without the vaccine, nearly empty.
+      ✗ [update P {"state":{"startCells":300}}]
+      ✗ And here it is after the vaccine, full, while the virus and the dashed sick line stay exactly as they were.
+      ✗ [clear_highlights]
+
+[183s] BEAT 5 "The second meeting is a race you win"  [11 sentences, avg 18.6 words, max 27, key 1]
+    You might be thinking a crowd of cells sitting around sounds nice, but does it change anything when the real virus shows up?
+    Let's breathe in the very same virus, with that full box, and run the clock three days.
+    [update P {"state":{"day":3}}]
+    [highlight P[1]]
+    The green line is already climbing by day two, where last time it waited until around day twelve.
+    [clear_highlights]
+    [highlight P[0]]
+    And the red line barely gets off the floor before it starts being pushed back down.
+    [clear_highlights]
+    [highlight P[2]]
+    ★ These cells don't need two weeks of searching and copying, because hundreds of them are already waiting.
+    So the response starts in two or three days instead of two weeks.
+    [clear_highlights]
+    Winning the race this early, before the virus can build up, is what it actually means to be immune.
+    [pin "The second race is won early" :: Memory cells answer in two to three days, so antibodies rise before the virus can multiply enough to make you sick.]
+    Before we let the clock run all the way to day twenty-one, make your prediction.
+    [pause]
+    [CHECK choice: Run the clock to day 21. Does the red virus line ever reach the dashed sick line? {Yes, around day 7, like the first time | Yes, but later, around day 14 | No, it is pushed down long before} expected ["No, it is pushed down long before","no"]]
+      ✓ [update P {"state":{"day":21}}]
+      ✓ [highlight P[3]]
+      ✓ Right, the red line is gone by about day four, far below the sick line, so you may never even notice you were infected.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"day":21}}]
+      ✗ [highlight P[0] P[3]]
+      ✗ That is a good guess if memory only delayed the virus, but watch: the red line is gone by about day four, nowhere near the dashed line.
+      ✗ The memory cells didn't just slow the virus down, they stopped it before it could multiply.
+      ✗ [clear_highlights]
+
+[193s] BEAT 6 "Back to the shot of nothing"  [13 sentences, avg 19.4 words, max 29, key 1]
+    So if memory wins the race, why do people get boosters, and why can a new variant still make you sick?
+    Over many years the memory crowd slowly thins, so let's shrink the box down to a few dozen cells and run the race again.
+    [update P {"state":{"startCells":30,"day":0}}]
+    [update P {"state":{"day":21}}]
+    [highlight P[0]]
+    The red line climbs about halfway to the sick line this time, because the head start has shrunk.
+    [clear_highlights]
+    A booster is a second rehearsal that refills the box, so let's put the crowd back.
+    [update P {"state":{"startCells":300,"day":0}}]
+    [update P {"state":{"day":21}}]
+    [highlight P[2]]
+    Full box again, and the red line is flattened back down near the floor.
+    [clear_highlights]
+    Now the other catch: if the virus changes its shape, only a handful of memory cells still fit the new one.
+    [update P {"state":{"startCells":10,"day":0}}]
+    [update P {"state":{"day":21}}]
+    [highlight P[0] P[3]]
+    So the red line climbs much closer to the sick line, which is why a changed variant can partly slip past, and why flu shots are updated every year.
+    [clear_highlights]
+    [highlight C A[2]]
+    ★ Back to the shot of nothing: it kills no germs, and it never had to.
+    It felt like it must be fighting the disease because protection looks like a weapon, but it is a rehearsal that moves your starting line.
+    [clear_highlights]
+    [pin "A vaccine is a rehearsal" :: It moves the starting line of the race; boosters refill the memory crowd, and a changed shape shrinks it.]
+    Now you can judge any vaccine with one question: how many fitting cells will be waiting on day zero?
+    slow· Half a millilitre of harmless protein buys you a head start that lasts for years, and I think that is really neat.
+    [CHECK choice: Want to go deeper? {Why some vaccines last a lifetime and others need boosters | How mRNA vaccines show the shape | I'm good for now} expected ["Why some vaccines last a lifetime and others need boosters","How mRNA vaccines show the shape","I'm good for now"]]
+      ✓ Ask me anytime, and we can run the race again on this same graph.
+      ✗ Ask me anytime, and we can run the race again on this same graph.
+
+[193s] lesson.complete 

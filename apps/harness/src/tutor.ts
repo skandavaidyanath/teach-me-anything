@@ -19,7 +19,7 @@ export type TutorInput = {
   pointed: string | null;
   context: TutorContext;
   window: TutorWindow;
-  lesson: { topic: string; title: string; style?: "demo" | "write-along"; hints?: Array<{ title: string; text: string }> };
+  lesson: { topic: string; title: string; style?: "demo" | "write-along" | "case"; hints?: Array<{ title: string; text: string }> };
 };
 
 export type TutorEvent =
@@ -152,7 +152,7 @@ export function buildUserPrompt(input: TutorInput): string {
   const outline = c.outline.map((b) => `- ${b.status === "current" ? "NOW" : b.status === "done" ? "covered" : "coming up"}: ${b.id} "${b.title}"${b.summary ? `: ${b.summary}` : ""}`).join("\n");
   const script = renderScript(input.window);
   const parts = [
-    `Lesson: ${input.lesson.title} (topic: ${input.lesson.topic}${input.lesson.style ? `; mode: ${input.lesson.style}, ${input.lesson.style === "demo" ? "one figure that transforms, phenomenon before mechanism" : "worked line by line, thinking aloud"}` : ""}).`,
+    `Lesson: ${input.lesson.title} (topic: ${input.lesson.topic}${input.lesson.style ? `; mode: ${input.lesson.style}, ${input.lesson.style === "demo" ? "one figure that transforms, phenomenon before mechanism" : input.lesson.style === "case" ? "a case study: the learner in the decision, one factor at a time with numbers" : "worked line by line, thinking aloud"}` : ""}).`,
     `Outline:\n${outline}`,
     renderRecord(c),
     input.lesson.hints?.length ? `Prepared answers from the planner, for questions it expected:\n${input.lesson.hints.map((h) => `- ${h.title}: ${h.text}`).join("\n")}` : null,

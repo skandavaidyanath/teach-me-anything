@@ -115,3 +115,13 @@ Measured after the removal, on a fresh topic ("why does ice float"), with the re
 
 Cartesia credits restored the same evening; the speed path verified: one fresh 12-word sentence ran 8.24 s at speed 1, 9.12 s at 0.85 (the key-line setting), 9.84 s at 0.7. Cartesia treats speed as guidance, so 0.85 is a gentle slowdown; the mapping from "slow" to a number lives in one place in the client (PACE_SPEED) if it should be stronger.
 
+## Preempting the learner, and Think School, 2026-10-14
+
+Reviewer's tip: use empathetic phrases that put the teacher in the student's shoes, "you're probably thinking", "you should ask the question", "this is probably confusing", the way the reference channels preempt a learner's doubt. Also named Think School, a channel for a different kind of material.
+
+Checked against the transcripts first: 3Blue1Brown ("if that feels strange and paradoxical, good", "ask yourself"), Veritasium ("I know that sounds crazy, but come with me for a minute"), Numberphile ("you might already start to notice"), and a Think School case study on Dubai real estate ("sounds insane, right? but here's what they don't tell you", "before you get too excited", "most people believe… that's completely wrong"), which runs these at about one sentence in twenty. Our earlier lessons ran from none to one in sixteen.
+
+Added as a shape rule and a voice rule for both models (decision 42), plus a third mode, case, from the Think School transcript. Measured on two fresh topics right after: Costco's business model (the Planner chose case) and how a vaccine trains the immune system (demo), each 60 sentences with 7 preempting lines, about one in eight. The lines as written: "You're probably thinking: if the chicken loses money and the markup stops at fourteen percent, where does the profit come from?" "The question you should be asking is whether those cells could do their slow searching without the virus around at all." "So a shot that kills nothing still leaves you protected a month later, and I know that sounds backwards." "But hold on, before you get too excited: if this four point seven billion from the door is more than half the profit, what happens when people stop coming back?"
+
+The Costco lesson has the Think School shape end to end: a puzzle with real numbers (a rotisserie chicken sold at a loss since 2009 beside 7.4 billion dollars of profit), a "three questions" card, one factor per beat with a formula and a worked example, a turn into each next beat, a myth named and tested against the 2024 fee rise, and a verdict card with conditions and numbered risks. Both lessons are in docs/examples.
+

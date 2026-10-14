@@ -34,7 +34,7 @@ const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 
 - One sentence per say op, plain, written to be spoken aloud. No markdown. Spell out symbols the way a person would say them.
 - Shape the delivery where it matters: "key": true on a sentence the listener needs to land (spoken slowly, with a breath after, set apart in the caption), "pace" on a sentence that should go slower or quicker, a pause op where silence does work. You decide which and how often.
 - Every say op refers to something the learner can see. Highlight what you are talking about. When a value moves, use a move op so it travels. Use the derivation element for step-by-step math, the split_tree for halving, rows for lists, a scene for a still diagram, and a component for anything that moves, changes viewpoint, or has parts that interact.
-- In demo mode, write one component for the lesson (a simulation or mechanism with state), introduce it in beat 2, and drive it with update ops in later beats rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. In write-along mode, the lines are a derivation element shown with revealed:1 and revealed one more line per update as it is spoken. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
+- In demo mode, write one component for the lesson (a simulation or mechanism with state), introduce it in beat 2, and drive it with update ops in later beats rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. In write-along mode, the lines are a derivation element shown with revealed:1 and revealed one more line per update as it is spoken. In case mode, the numbers live in one chart component whose state picks the factor shown, with rows and cards for the framework. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
 - The reaction to a check shows the answer on the board, with an update or a highlight, before the sentence that explains it.
 - Pin one idea per beat with a short bold title and one sentence of body. Pin formulas as kind "equation" with "tex".
 - Checks have a known answer: choice with 3 options and an "expected" list of accepted answers (include the exact option text), or click_cell with targets and an expected target. The last beat's check may be an ungraded "want to go deeper?" prompt. Reactions: onCorrect one sentence; onIncorrect a highlight or update, one or two sentences that teach, then clear_highlights.
@@ -44,7 +44,7 @@ const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 
 - A short calibration question with 3 options opens the lesson; beat 1 must work regardless of the answer.`;
 
 const FORMAT = `OUTPUT FORMAT. Write blocks, nothing else. Each block is a line "===HEADER===", "===BEAT===", or "===COMPONENT===", then its content, then a line "===END===". HEADER and BEAT content is one JSON object, strictly valid: double-quoted keys and strings, a comma between every pair of items, no trailing commas, no comments, no text outside the braces. Inside strings, escape backslashes (write \\\\log for \\log) and double quotes.
-The header JSON: {"topic":"...","title":"...","style":"demo" or "write-along","calibration":{"prompt":"...","options":["...","...","..."]},"outline":[{"id":"b1","title":"...","summary":"..."}, ...]}
+The header JSON: {"topic":"...","title":"...","style":"demo" or "write-along" or "case","calibration":{"prompt":"...","options":["...","...","..."]},"outline":[{"id":"b1","title":"...","summary":"..."}, ...]}
 Each beat JSON: {"id":"b1","title":"...","summary":"...","ops":[...]}
 A COMPONENT block carries a figure's code unescaped. Its first line is a JSON object with every field but "code" ({"id":"P","title":"A pendulum","width":600,"height":360,"state":{"length":1},"stateDoc":"length: 0.5 to 2","parts":["bob","string","gravity"]}), and the lines after it up to ===END=== are the code. Write the block before the first beat that shows the figure, and show it with {"op":"show","id":"b2.e1","element":{"kind":"component","id":"P"}}; the code is attached from the block.`;
 
@@ -109,7 +109,7 @@ export const PLANNER_SYSTEM = `${RULES}\n\n${STYLE_GUIDE}\n\n${PRIMITIVES_DOC}\n
 const HeaderBlockSchema = z.object({
   topic: z.string().min(1),
   title: z.string().min(1),
-  style: z.enum(["demo", "write-along"]).optional(),
+  style: z.enum(["demo", "write-along", "case"]).optional(),
   calibration: z.object({ prompt: z.string().min(1), options: z.array(z.string().min(1)).min(2) }).optional(),
   outline: z.array(z.object({ id: z.string().min(1), title: z.string().min(1), summary: z.string().optional() })).min(2),
 });

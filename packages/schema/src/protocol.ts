@@ -11,14 +11,14 @@ import { BeatSchema, BranchSchema, CalibrationSchema, OpSchema, ResumeSchema, ty
 export const OutlineEntrySchema = z.object({ id: z.string(), title: z.string(), summary: z.string().optional() });
 export type OutlineEntry = z.infer<typeof OutlineEntrySchema>;
 
-export const LessonStyleSchema = z.enum(["demo", "write-along"]);
+export const LessonStyleSchema = z.enum(["demo", "write-along", "case"]);
 export type LessonStyle = z.infer<typeof LessonStyleSchema>;
 
 export const LessonHeaderSchema = z.object({
   id: z.string(),
   topic: z.string(),
   title: z.string(),
-  /** Which of the two teaching modes the planner chose; see apps/harness/prompts/style.md. */
+  /** Which teaching mode the planner chose; see apps/harness/prompts/style.md. */
   style: LessonStyleSchema.optional(),
   calibration: CalibrationSchema.optional(),
   outline: z.array(OutlineEntrySchema).min(1),

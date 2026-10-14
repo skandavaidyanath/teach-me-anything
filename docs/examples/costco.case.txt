@@ -1,0 +1,189 @@
+[  8s] HEADER "Costco makes its money at the door, not at the till" style=case topic=how Costco makes money selling things so cheaply
+      calibration: Quick check before we start: have you ever shopped at a warehouse club like Costco? {Yes, I'm a member | I've been once or twice | Never}
+      - b1 The rotisserie chicken that loses money: Costco caps its markup at around 14 percent and sells a chicken below cost, yet earns billions, which raises the puzzle of where the profit comes from.
+      - b2 Pillar one: the membership fee: Membership fees of about 65 dollars from over 70 million households are roughly half of Costco's operating profit, so the store can sell goods near cost and still make money.
+      - b3 Pillar two: fewer items, faster turns: By stocking about 4,000 items instead of a supermarket's 30,000, Costco buys in huge volume, sells inventory before paying suppliers, and lets suppliers' money fund its shelves.
+      - b4 The catch: the renewal rate: The whole model depends on members renewing, and Costco's renewal rate above 90 percent is what makes the fee income reliable enough to keep prices low.
+      - b5 Verdict: why cheap prices are the product: Low prices are what Costco sells to keep members paying the fee, so the model works only while trust and renewal stay high, and copying it requires all three pillars together.
+
+[ 31s] BEAT 1 "The rotisserie chicken that loses money"  [13 sentences, avg 18.5 words, max 30, key 1]
+    [show text_card CH "Costco rotisserie chicken" :: Price: 4 dollars 99, unchanged since 2009. / Costco is estimated to lose tens of millions of dollars a year on it.]
+    Here is a whole cooked chicken that Costco sells for four dollars ninety nine.
+    [highlight CH[0]]
+    That price has not moved since 2009, and on most estimates Costco loses money on every single one.
+    [clear_highlights]
+    Now picture yourself running a store, and the first thing you do is sell your most popular item at a loss.
+    slow· Sounds insane, right?
+    [show array_row MK "markup on goods"]
+    And it is not only the chicken, because this row shows Costco's rule for everything else.
+    [show latex F \text{markup} = \frac{\text{price} - \text{cost}}{\text{cost}} = \frac{114 - 100}{100} = 14\%]
+    Markup is the price minus the cost, divided by the cost, so a TV that costs Costco a hundred dollars goes on the shelf for about a hundred and fourteen.
+    [highlight MK[1]]
+    A normal supermarket would ask far more than that, and still be happy with a thin profit.
+    [clear_highlights]
+    [show array_row P "Costco, one year (2024)"]
+    ★ But here's the twist: look at this row, because Costco made about seven point four billion dollars of profit in one year.
+    [pin "Cheap goods, big profit" :: Costco caps markup near 14 percent and loses money on its chicken, yet earns billions a year.]
+    [show text_card Q "Three questions" :: 1. Where does the profit actually come from? / 2. How do prices stay this low? / 3. What could make it all fall apart?]
+    So these are the three questions we'll answer, and the first one is the big one.
+    Before we look, make your guess: where do you think most of that profit comes from?
+    [CHECK choice: Where does most of Costco's profit come from? {The small markup on goods | Membership fees | Selling more chickens} expected ["Membership fees","membership","fees","the membership fee"]]
+      ✓ [update P {"values":["Sales: about 254 billion dollars","Profit: about 7.4 billion dollars","Membership fees: about 4.8 billion dollars"]}]
+      ✓ [highlight P[2]]
+      ✓ Right, the fees people pay just to walk in come to almost five billion dollars, which is where we go next.
+      ✓ [clear_highlights]
+      ✗ [update P {"values":["Sales: about 254 billion dollars","Profit: about 7.4 billion dollars","Membership fees: about 4.8 billion dollars"]}]
+      ✗ [highlight P[2]]
+      ✗ That's a good guess, because a store normally lives on what it sells, but this new line shows almost five billion dollars coming from membership fees alone.
+      ✗ The goods are priced so close to cost that the fee at the door does much of the earning.
+      ✗ [clear_highlights]
+
+[ 52s] BEAT 2 "Pillar one: the membership fee"  [10 sentences, avg 22.1 words, max 29, key 1]
+    You're probably thinking: if the chicken loses money and the markup stops at fourteen percent, where does the profit come from?
+    [show component P "Costco by the numbers" [49 lines of code; state {"factor":"profit","reveal":false}; parts ["bar0","bar1","bar2","note"]]]
+    [highlight P[2]]
+    This bar right here is Costco's operating profit for fiscal 2023, about eight point one billion dollars.
+    [clear_highlights]
+    A normal supermarket earns its profit at the till, with markups of around twenty five to thirty percent on the shelf.
+    Costco can't do that, so let's look at the door instead, because to get in, you pay a membership fee.
+    [show derivation D "fee income = paying households times the fee" (2 lines, 1 shown)]
+    This first factor is fee income, and the metric is just paying households times the yearly fee.
+    [update D {"revealed":2,"focus":1}]
+    [highlight D[1]]
+    ★ About seventy three million households pay roughly sixty five dollars each, which is about four point seven billion dollars before anyone buys a thing.
+    [clear_highlights]
+    [pin "Fee income" :: Paying households times the yearly fee, collected before a single sale.]
+    Before I split that profit bar, pause and decide: how much of the eight billion do you think comes from the fee?
+    [CHECK choice: What share of Costco's operating profit comes from membership fees? {About a tenth | About half | Nearly all} expected ["About half","half"]]
+      ✓ [update P {"state":{"reveal":true}}]
+      ✓ [highlight P[0]]
+      ✓ Right, about four point six of the eight point one billion comes from fees, more than half, so the shelves only need to cover their own costs.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"reveal":true}}]
+      ✗ [highlight P[0] P[1]]
+      ✗ That's a good guess, but look: fees bring in about four point six billion, and selling goods adds only three and a half.
+      ✗ Most people believe a store profits on what it sells, but here the door pays more than half the profit, which is why the shelves can sit near cost.
+      ✗ [clear_highlights]
+
+[ 91s] BEAT 3 "Pillar two: fewer items, faster turns"  [18 sentences, avg 18.7 words, max 28, key 1]
+    But hold on, the fee was only the first pillar.
+    The goods still have to be bought and shelved, so how does a fourteen percent markup not turn into a loss?
+    [clear CH,MK,F,Q,D]
+    [show array_row IT "different items on the shelves"]
+    Start with this row: a typical supermarket stocks about thirty thousand different items, and Costco stocks about four thousand.
+    [highlight IT[1]]
+    Fewer items means each one sells in enormous volume, so Costco can order a whole factory's worth of one brand of ketchup.
+    That volume buys a lower cost price, and the fourteen percent sits on top of that lower cost.
+    [clear_highlights]
+    [show derivation TR "inventory turns" (3 lines, 1 shown)]
+    The second factor is how fast stock leaves the shelf, and it's called inventory turns.
+    The metric is a year's sales at cost, divided by what sits on the shelf on an average day.
+    [update TR {"revealed":2,"focus":1}]
+    [highlight TR[1]]
+    Say a store sells twelve hundred dollars of goods a year and keeps a hundred dollars on the shelf, so the shelf empties and refills twelve times.
+    [update TR {"revealed":3,"focus":2}]
+    [highlight TR[2]]
+    Twelve turns a year means each item waits about thirty days before someone buys it.
+    [clear_highlights]
+    Here's why that matters: suppliers usually give a store about thirty days to pay its bill.
+    ★ So if the stock sells within thirty days, your money at the till arrives before the supplier's bill does, and the supplier has effectively paid for the shelf.
+    Notice what I'm not saying: Costco does pay its suppliers on time, the goods are just gone before the bill comes due.
+    For a retailer, under about six turns a year is slow, and above about ten is fast.
+    [pin "Fewer items, faster turns" :: About 4,000 items sold in huge volume turn over fast enough that goods sell before the supplier is paid.]
+    [update P {"state":{"factor":"turns","reveal":false}}]
+    [highlight P[2]]
+    The chart now shows turns, and this bar is Target, at about six a year.
+    [clear_highlights]
+    Before I fill in the rest, make your call: how many times a year do you think Costco empties its shelves?
+    [CHECK choice: Target turns its inventory about 6 times a year. How many times does Costco? {About 3 times | About 6 times | About 12 times} expected ["About 12 times","12","twelve","about twelve"]]
+      ✓ [update P {"state":{"reveal":true}}]
+      ✓ [highlight P[0]]
+      ✓ Right, about twelve, against Walmart's eight and Target's six, so Costco's stock is sold before the bill arrives.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"reveal":true}}]
+      ✗ [highlight P[0] P[2]]
+      ✗ That's a fair guess if Costco ran like Target, but this bar shows about twelve turns, twice Target's six.
+      ✗ Four thousand items, each selling in huge volume, is what empties the shelf that fast.
+      ✗ [clear_highlights]
+
+[127s] BEAT 4 "The catch: the renewal rate"  [13 sentences, avg 22.0 words, max 30, key 1]
+    [highlight D[1]]
+    But hold on, before you get too excited: if this four point seven billion from the door is more than half the profit, what happens when people stop coming back?
+    [clear_highlights]
+    [update P {"state":{"factor":"renewal","reveal":false}}]
+    [highlight P[2]]
+    The chart now shows renewal, and the one bar standing is a typical gym, where about half the members walk away every year.
+    [clear_highlights]
+    [update D {"label":"the second factor: renewal","steps":[{"tex":"\\text{fee income} = \\text{households} \\times \\text{fee}","note":"the first factor"},{"tex":"73\\text{ million} \\times \\$65 \\approx \\$4.7\\text{ billion}","note":"Costco, roughly"},{"tex":"\\text{renewal rate} = \\frac{\\text{renewed}}{\\text{up for renewal}}","note":"the second factor"},{"tex":"\\frac{93}{100} = 93\\%","note":"100 memberships expire, 93 pay again"},{"tex":"73\\text{ million} \\times 7\\% \\approx 5\\text{ million lost a year}","note":"at 93 percent renewal"},{"tex":"73\\text{ million} \\times 50\\% \\approx 36\\text{ million lost a year}","note":"at a gym's 50 percent"}],"revealed":3,"focus":2}]
+    [highlight D[2]]
+    This new line is the second factor, the renewal rate: of the members whose year runs out, the share who pay again.
+    [update D {"revealed":4,"focus":3}]
+    [highlight D[3]]
+    So if a hundred memberships run out and ninety three people pay again, the renewal rate is ninety three percent.
+    [clear_highlights]
+    [highlight P[2]]
+    For a paid membership, anything above ninety percent is excellent, and down near fifty, like that gym, you are refilling half your base every year.
+    [clear_highlights]
+    [update D {"revealed":5,"focus":4}]
+    [highlight D[4]]
+    At ninety three percent, Costco loses about five million of its seventy three million households a year.
+    [update D {"revealed":6,"focus":5}]
+    [highlight D[5]]
+    ★ At a gym's fifty percent it would lose thirty six million, and the fee bar that pays for cheap shelves would melt away.
+    [clear_highlights]
+    [pin "Renewal rate" :: The share of expiring members who pay again; above 90 percent makes fee income dependable.]
+    [show text_card E "The 2024 test" :: September 2024: basic fee raised from 60 to 65 dollars. / Executive tier raised from 120 to 130 dollars.]
+    And here is a real test: in September 2024, Costco raised its fee from sixty dollars to sixty five.
+    Most people believe a higher fee drives shoppers away, so you're probably expecting renewals to drop toward that gym bar.
+    Before I reveal the Costco bars, pause and decide what happened.
+    [CHECK choice: After the 2024 fee hike, what share of Costco's US and Canada members renewed? {About 50 percent, like a gym | About 75 percent | Over 90 percent} expected ["Over 90 percent","over 90","90 percent","93 percent","about 93 percent"]]
+      ✓ [update P {"state":{"reveal":true}}]
+      ✓ [update E {"body":"September 2024: basic fee raised from 60 to 65 dollars.\nExecutive tier raised from 120 to 130 dollars.\nRenewal afterward: about 93 percent in the US and Canada."}]
+      ✓ [highlight P[0]]
+      ✓ Right, about ninety three percent paid the higher fee anyway, because the shelves had already proved they save you more than sixty five dollars.
+      ✓ [clear_highlights]
+      ✗ [update P {"state":{"reveal":true}}]
+      ✗ [update E {"body":"September 2024: basic fee raised from 60 to 65 dollars.\nExecutive tier raised from 120 to 130 dollars.\nRenewal afterward: about 93 percent in the US and Canada."}]
+      ✗ [highlight P[0] P[2]]
+      ✗ That's a good guess, since a gym loses half its members, but this first bar shows about ninety three percent of Costco members paid the higher fee anyway.
+      ✗ A gym asks you to keep going, while Costco's shelves save the average family more than the fee, so renewing feels like getting paid.
+      ✗ [clear_highlights]
+
+[156s] BEAT 5 "Verdict: why cheap prices are the product"  [15 sentences, avg 22.4 words, max 32, key 2]
+    [highlight MK[1]]
+    So you might be wondering: if the fee is where the money is, why keep this markup stuck at fourteen percent at all?
+    [clear_highlights]
+    [update P {"state":{"factor":"profit","reveal":true}}]
+    [highlight P[0]]
+    Look at the profit chart again, because this fee bar only exists while people believe the shelves are the cheapest in town.
+    ★ The low prices are not how Costco makes money; they are what your sixty five dollars buys.
+    [clear_highlights]
+    [highlight CH[0]]
+    That brings us back to this chicken that loses money on every sale.
+    It sounded insane because we assumed a store earns at the till, but this chicken is an advert that keeps nine in ten members renewing.
+    [clear_highlights]
+    [show array_row PL "the three pillars"]
+    Here are the three pillars side by side, and each one holds up the other two.
+    [show text_card V "Verdict" :: A gold mine while members trust the prices and keep renewing. / A trap for anyone who copies one pillar alone. / Risks: / 1. Renewal slips well below 90 percent. / 2. Raising prices breaks the trust in cheap shelves. / 3. Online rivals match prices with no fee at all.]
+    So my verdict is on this card: a gold mine while members trust the prices and renew, and a trap for anyone who copies only one pillar.
+    [highlight V[0]]
+    The three risks listed here all hit the same spot, the renewal rate, and you can decide for yourself how safe you think it is.
+    [clear_highlights]
+    [pin "Cheap prices are the product" :: Costco sells low prices to keep members paying the fee, so the model lives or dies on renewal.]
+    Now you can look at any membership business, from a gym to a streaming service, and ask two questions: how much comes from the fee, and do people come back?
+    ★ So Costco sells goods near cost, earns more than half its profit as a fee at the door, and keeps it only while nine in ten members return.
+    Isn't that neat: the chicken that loses money at the till is earning its keep at the door.
+    [pause]
+    One last prediction, using the profit chart on the board.
+    [CHECK choice: A rival copies Costco's 14 percent markup and fast turns but charges no membership fee. How does its profit compare with Costco's? {About the same | Less than half | More, with no fee to scare people off} expected ["Less than half","less than half"]]
+      ✓ [highlight P[0]]
+      ✓ [highlight P[1]]
+      ✓ Right, take away this fee bar and only the three and a half billion from selling goods is left, less than half of Costco's eight point one.
+      ✓ [clear_highlights]
+      ✗ [highlight P[0]]
+      ✗ [highlight P[1]]
+      ✗ That's a good guess, because no fee does sound like an advantage, but strip out this fee bar and only three and a half of the eight point one billion is left.
+      ✗ That is why copying the prices without the door and the renewals leaves you with Costco's costs and less than half its profit.
+      ✗ [clear_highlights]
+
+[156s] lesson.complete 

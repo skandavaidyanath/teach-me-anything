@@ -37,7 +37,7 @@ No blackboard writing yet, and no art direction: figures are the model's own SVG
 
 ## Changing how it teaches
 
-The lesson's voice and structure are in `apps/harness/prompts/style.md`, a plain text file both models read: how a lesson opens, when the learner predicts, how names and symbols arrive, the two modes (demo, write-along), and the voice. Edit it and restart the harness. To read what the Planner writes for a topic without the browser:
+The lesson's voice and structure are in `apps/harness/prompts/style.md`, a plain text file both models read: how a lesson opens, when the learner predicts, how names and symbols arrive, the three modes (demo, write-along, case), and the voice. Edit it and restart the harness. To read what the Planner writes for a topic without the browser:
 
 ```
 cd apps/harness && node scripts/dump-lesson.mjs "why is the sky blue"
