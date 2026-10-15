@@ -92,10 +92,13 @@ type Listener = () => void;
 const SETTLE_MS: Partial<Record<Op["op"], number>> = { show: 420, update: 520, move: 560, highlight: 320, clear_highlights: 120, clear: 240 };
 const FILLERS = ["Good question.", "Let me think about that for a second.", "Right, let me answer that."];
 const FILLER_ITEMS: SpeechItem[] = FILLERS.map((text) => ({ text }));
-/** Silence after a key sentence, so it lands. */
+/** Silence around a key sentence, so it lands: a breath before, a longer one after. */
+const KEY_LEAD_MS = 350;
 const KEY_PAUSE_MS = 700;
+/** How long the opening waits for the Tutor to start it from the learner's answer. */
+const OPENING_WAIT_MS = 4000;
 
-const paceOf = (op: Extract<Op, { op: "say" }>): Pace | undefined => op.pace ?? (op.key ? "slow" : undefined);
+const paceOf = (op: Extract<Op, { op: "say" }>): Pace | undefined => op.pace;
 const PREFETCH_AHEAD = 3;
 /** How much of the next beat the Tutor may edit. */
 const NEXT_PREFIX_OPS = 5;
@@ -136,6 +139,8 @@ export class Playhead {
   private history: QueueItem[] = [];
   private beatStarts: number[] = [];
   private queue: QueueItem[] = [];
+  /** The current beat's ops are in the queue. False while a review of the beat is still out, or before it arrived. */
+  private loadedBeat = false;
 
   private runToken = 0;
   private inFlight: QueueItem | null = null;
@@ -243,20 +248,24 @@ export class Playhead {
 
   // ---- content arrival ----------------------------------------------------
 
-  appendBeat(beat: Beat, index?: number): void {
+  appendBeat(beat: Beat, index?: number, opts: { calibrationSeen?: boolean } = {}): void {
     const at = index ?? this.beats.length;
     if (this.beats[at]) return;
     this.beats[at] = beat;
-    this.reviewedAt[at] = this.eventCount;
+    // A beat written before the learner's opening answer reached the Planner is reviewed against it before it plays.
+    this.reviewedAt[at] = opts.calibrationSeen === false ? 0 : this.eventCount;
     this.set({ loadedBeats: this.beats.filter(Boolean).length });
     if (at === 0 && (this.state.mode === "calibrating" || this.state.mode === "idle")) {
       this.speaker.prefetch?.([...FILLER_ITEMS, ...firstSays(beat.ops, PREFETCH_AHEAD)]);
     }
     if (this.waitingForBeat && at === this.state.beatIndex) {
       this.waitingForBeat = false;
-      this.loadBeatQueue(at);
+      this.loadedBeat = false;
       this.set({ waiting: null });
-      if (this.state.mode === "playing") void this.run();
+      if (this.state.mode === "playing") {
+        this.requestReviewIfDue(at);
+        void this.run();
+      }
     }
   }
 
@@ -275,6 +284,7 @@ export class Playhead {
     const beat = this.beats[index]!;
     this.beatStarts[index] = this.history.length;
     this.queue = beat.ops.map((op) => ({ op, origin: "beat" as const }));
+    this.loadedBeat = true;
     this.prefetchUpcoming();
     this.emit({ kind: "beat_started", beatId: beat.id, index });
   }
@@ -347,11 +357,13 @@ export class Playhead {
     if (calibrationAnswer) this.note({ kind: "calibration", answer: calibrationAnswer });
     this.emit({ kind: "lesson_started", calibrationAnswer });
     this.speaker.prefetch?.(FILLER_ITEMS);
+    this.loadedBeat = false;
+    this.queue = [];
     if (this.beats[0]) {
-      this.loadBeatQueue(0);
+      // The first part was written before the learner answered; the Tutor opens it from their answer.
+      this.requestReviewIfDue(0);
       void this.run();
     } else {
-      this.queue = [];
       this.waitingForBeat = true;
       this.set({ waiting: "beat" });
     }
@@ -374,6 +386,15 @@ export class Playhead {
           continue;
         }
         if (this.awaitReview()) return;
+        if (!this.loadedBeat) {
+          if (!this.beats[this.state.beatIndex]) {
+            this.waitingForBeat = true;
+            this.set({ waiting: "beat" });
+            return;
+          }
+          this.loadBeatQueue(this.state.beatIndex);
+          continue;
+        }
         const next = this.advanceBeat();
         if (next === "finished") {
           this.set({ mode: "finished", caption: null, waiting: null });
@@ -411,6 +432,11 @@ export class Playhead {
         const pace = paceOf(op);
         this.set({ caption: { text: op.text, spokenChars: 0, origin: item.origin, ...(op.key ? { key: true } : {}) }, waiting: null, ...staleVerdict });
         this.prefetchUpcoming();
+        if (op.key) {
+          // A breath before a key sentence.
+          await sleep(KEY_LEAD_MS * this.settleScale);
+          if (token !== this.runToken) return;
+        }
         let audioMarked = false;
         const handle = this.speaker.speak(op.text, (chars) => {
           if (token !== this.runToken) return;
@@ -460,20 +486,21 @@ export class Playhead {
     }
   }
 
-  /** A review of the next beat is still out: hold briefly rather than play the unreviewed opening. */
+  /** A review of the beat about to play is still out: hold briefly rather than play the unreviewed opening. */
   private awaitReview(): boolean {
     const req = this.pendingRequest;
-    const nextIndex = this.state.beatIndex + 1;
-    if (!req || req.kind !== "review" || req.nextBeatIndex !== nextIndex || !this.beats[nextIndex]) return false;
+    const target = this.loadedBeat ? this.state.beatIndex + 1 : this.state.beatIndex;
+    if (!req || req.kind !== "review" || req.nextBeatIndex !== target || !this.beats[target]) return false;
     if (!this.reviewHold) {
       const requestId = req.requestId;
+      const opening = !this.loadedBeat && this.history.length === 0;
       const timer = setTimeout(() => {
         if (this.reviewHold?.requestId !== requestId) return;
         this.reviewHold = null;
         if (this.pendingRequest?.requestId === requestId) this.pendingRequest = null;
         if (this.state.waiting === "review") this.set({ waiting: null });
         if (this.state.mode === "playing") void this.run();
-      }, REVIEW_WAIT_MS * this.settleScale);
+      }, (opening ? OPENING_WAIT_MS : REVIEW_WAIT_MS) * this.settleScale);
       this.reviewHold = { requestId, timer };
     }
     if (this.state.waiting !== "review") this.set({ waiting: "review" });
@@ -495,6 +522,7 @@ export class Playhead {
       return "finished";
     }
     this.set({ beatIndex: next, completedBeats: completed, check: null });
+    this.loadedBeat = false;
     if (!this.beats[next]) {
       this.waitingForBeat = true;
       this.queue = [];
@@ -761,15 +789,30 @@ export class Playhead {
 
   /** At a check, review the next beat if anything happened since it was written. */
   private maybeReview(): void {
+    this.requestReviewIfDue(this.state.beatIndex + 1);
+  }
+
+  /** Ask the Tutor to review a beat that has not played yet, if the record changed since it was written. */
+  private requestReviewIfDue(index: number): void {
     if (!this.onReview || this.holdFor) return;
-    const nextIndex = this.state.beatIndex + 1;
-    const next = this.beats[nextIndex];
-    if (!next) return;
-    if ((this.reviewedAt[nextIndex] ?? 0) >= this.eventCount) return;
+    const beat = this.beats[index];
+    if (!beat) return;
+    if ((this.reviewedAt[index] ?? 0) >= this.eventCount) return;
     const requestId = `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    const { window, nextPrefixCount } = this.buildWindow();
-    this.pendingRequest = { requestId, kind: "review", nextBeatIndex: nextIndex, nextPrefixCount, beatIndexAtSend: this.state.beatIndex };
-    this.reviewedAt[nextIndex] = this.eventCount;
+    let window: TutorWindow;
+    let nextPrefixCount: number;
+    if (index === this.state.beatIndex && !this.loadedBeat) {
+      // The beat about to play, before any of it has: the window is its opening alone.
+      const nextPrefix = beat.ops.slice(0, NEXT_PREFIX_OPS);
+      window = { currentBeatId: beat.id, current: [], nextBeatId: beat.id, nextPrefix };
+      nextPrefixCount = nextPrefix.length;
+    } else {
+      const built = this.buildWindow();
+      window = built.window;
+      nextPrefixCount = built.nextPrefixCount;
+    }
+    this.pendingRequest = { requestId, kind: "review", nextBeatIndex: index, nextPrefixCount, beatIndexAtSend: this.state.beatIndex };
+    this.reviewedAt[index] = this.eventCount;
     this.setTelemetry({ ask: { requestId, kind: "review", sentAt: performance.now(), firstOpMs: null, firstAudioMs: null, doneMs: null, server: null }, reviews: this.state.telemetry.reviews + 1 });
     this.onReview({ requestId, context: this.buildContext(), window });
   }
@@ -798,7 +841,8 @@ export class Playhead {
       const kept = this.queue.filter((i) => i.origin !== "beat");
       this.queue = [...kept, ...current.map((op) => ({ op, origin: "beat" as const }))];
     }
-    if (nextPrefix && req.nextBeatIndex !== null && this.beats[req.nextBeatIndex] && req.nextBeatIndex > this.state.beatIndex) {
+    const notPlayedYet = req.nextBeatIndex !== null && (req.nextBeatIndex > this.state.beatIndex || (req.nextBeatIndex === this.state.beatIndex && !this.loadedBeat));
+    if (nextPrefix && req.nextBeatIndex !== null && this.beats[req.nextBeatIndex] && notPlayedYet) {
       const beat = this.beats[req.nextBeatIndex]!;
       this.beats[req.nextBeatIndex] = { ...beat, ops: [...nextPrefix, ...beat.ops.slice(req.nextPrefixCount)] };
       this.reviewedAt[req.nextBeatIndex] = this.eventCount;
@@ -1060,6 +1104,7 @@ export class Playhead {
     }
     this.recomputeBoard();
     this.set({ mode: "playing", beatIndex: index, check: null, caption: null, waiting: null });
+    this.loadedBeat = false;
     if (this.beats[index]) {
       this.waitingForBeat = false;
       this.loadBeatQueue(index);

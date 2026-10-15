@@ -264,7 +264,7 @@ export class ScriptParser {
       this.sayCount++;
       const op: Op = { op: "say", id: `${this.idPrefix}.s${this.sayCount}`, text };
       if (name === "key") op.key = true;
-      if (name === "key" || name === "slow") op.pace = "slow";
+      if (name === "slow") op.pace = "slow";
       if (name === "quick") op.pace = "quick";
       return { kind: "op", op };
     }

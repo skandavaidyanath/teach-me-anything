@@ -136,7 +136,8 @@ export type TutorTiming = z.infer<typeof TutorTimingSchema>;
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("session.ready"), sessionId: z.string(), tts: z.object({ available: z.boolean(), voiceId: z.string().nullable() }) }),
   z.object({ type: z.literal("lesson.header"), header: LessonHeaderSchema, source: z.enum(["bundled", "planner"]) }),
-  z.object({ type: z.literal("lesson.beat"), index: z.number(), beat: BeatSchema }),
+  /** `calibrationSeen` is false when the beat was written before the learner's opening answer could reach the Planner. */
+  z.object({ type: z.literal("lesson.beat"), index: z.number(), beat: BeatSchema, calibrationSeen: z.boolean().optional() }),
   /** Replan: beats from `fromIndex` on are replaced; the outline is replaced from that index too. */
   z.object({ type: z.literal("lesson.replace"), fromIndex: z.number(), outline: z.array(OutlineEntrySchema), reason: z.string() }),
   z.object({ type: z.literal("lesson.complete") }),

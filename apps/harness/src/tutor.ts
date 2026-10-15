@@ -68,6 +68,8 @@ The planner may have prepared answers for likely questions; if so they are liste
 
 If there was no question, you are reviewing the next part after something happened (a wrong answer, a skip, a question earlier). Keep the lines unless the record gives a reason to reword: acknowledge what the learner already asked or got wrong, skip what they already know. Most reviews should be mostly keeps.
 
+One review is different: the opening of the lesson, right after the learner answered the opening question. The first part was written before their answer. Rewrite its opening lines to start from what they told you they have, in their words ("you've called torch.matmul; here is what happens under the hood"), keep every anchor, and leave the rest alone.
+
 If the lesson itself needs to change beyond wording (a missing prerequisite, a learner far behind or far ahead, a request to go somewhere else), add one line: @replan from=<beatId> reason=<short reason>. Still return the script for the lines you were given.
 
 ${DRAWING_DIRECTIVES_DOC}
@@ -117,12 +119,15 @@ export function renderScript(window: TutorWindow): { lines: string; anchors: Set
     if (op.op !== "say") anchors.add(n);
     lines.push(`[${n}] ${renderOp(op)}`);
   };
-  lines.push(`Current part (${window.currentBeatId}), pending lines:`);
-  if (window.current.length === 0) lines.push("(nothing left in this part)");
-  for (const op of window.current) push(op);
+  const opening = window.current.length === 0 && window.nextBeatId === window.currentBeatId;
+  if (!opening) {
+    lines.push(`Current part (${window.currentBeatId}), pending lines:`);
+    if (window.current.length === 0) lines.push("(nothing left in this part)");
+    for (const op of window.current) push(op);
+  }
   const currentCount = n;
   if (window.nextBeatId && window.nextPrefix.length > 0) {
-    lines.push(`Next part (${window.nextBeatId}), opening lines:`);
+    lines.push(opening ? `Opening of the lesson (${window.nextBeatId}), its first lines:` : `Next part (${window.nextBeatId}), opening lines:`);
     for (const op of window.nextPrefix) push(op);
   }
   return { lines: lines.join("\n"), anchors, total: n, currentCount };
@@ -165,7 +170,11 @@ export function buildUserPrompt(input: TutorInput): string {
     "",
     script.lines,
     "",
-    input.kind === "ask" ? `Learner: ${input.text}\n\nAnswer first, then return the script from line 1 to line ${script.total}.` : `No question. Review the script above given the record and return it from line 1 to line ${script.total}, keeping lines unless there is a reason to reword.`,
+    input.kind === "ask"
+      ? `Learner: ${input.text}\n\nAnswer first, then return the script from line 1 to line ${script.total}.`
+      : input.window.current.length === 0 && input.window.nextBeatId === c.outline[0]?.id && c.record.some((r) => r.kind === "calibration")
+        ? `This is the opening of the lesson, and the learner just answered the opening question (see the record). Rewrite the opening lines to start from what they have, keep every anchor, and return the script from line 1 to line ${script.total}.`
+        : `No question. Review the script above given the record and return it from line 1 to line ${script.total}, keeping lines unless there is a reason to reword.`,
   ];
   return parts.filter((p): p is string => p !== null).join("\n");
 }

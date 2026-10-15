@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type WebSocket from "ws";
 import { getLesson } from "@tma/content";
 import { ClientMessageSchema, headerFromLesson, type Beat, type ClientMessage, type LessonHeader, type RecordEntry, type ServerMessage } from "@tma/schema";
-import { planLesson, replanLesson, type PlannerStreamer } from "./planner";
+import { calibrationHandle, planLesson, replanLesson, type CalibrationHandle, type PlannerStreamer } from "./planner";
 import { ReplayLog } from "./replay";
 import { tutor, type TextStreamer, type TutorInput } from "./tutor";
 
@@ -33,6 +33,7 @@ export class Session {
   private timers: ReturnType<typeof setTimeout>[] = [];
   private closed = false;
   private replanning = false;
+  private calibration: CalibrationHandle = calibrationHandle();
 
   constructor(
     private readonly socket: Sender,
@@ -87,6 +88,7 @@ export class Session {
         this.record = [];
         this.currentBeatIndex = 0;
         if (event.calibrationAnswer) this.record.push({ kind: "calibration", answer: event.calibrationAnswer });
+        this.calibration.resolve(event.calibrationAnswer ?? null);
         return;
       case "beat_started":
         if (event.index > this.currentBeatIndex + 1) this.record.push({ kind: "jumped", toBeatId: event.beatId });
@@ -148,7 +150,8 @@ export class Session {
     this.topic = topic;
     const started = performance.now();
     const plannedId = `plan-${this.id.slice(0, 8)}`;
-    for await (const ev of planLesson(topic, plannedId, this.deps.plannerStreamer)) {
+    this.calibration = calibrationHandle();
+    for await (const ev of planLesson(topic, plannedId, this.deps.plannerStreamer, this.calibration)) {
       if (this.closed) return;
       if (ev.type === "header") {
         this.header = ev.header;
@@ -157,7 +160,7 @@ export class Session {
       } else if (ev.type === "beat") {
         this.beats[ev.index] = ev.beat;
         this.log.write("planner", { phase: "beat", index: ev.index, ms: Math.round(performance.now() - started), issues: ev.issues, ops: ev.beat.ops.length, stats: ev.stats });
-        this.send({ type: "lesson.beat", index: ev.index, beat: ev.beat });
+        this.send({ type: "lesson.beat", index: ev.index, beat: ev.beat, ...(ev.calibrationSeen !== undefined ? { calibrationSeen: ev.calibrationSeen } : {}) });
       } else if (ev.type === "diagnostic") {
         this.log.write("planner_diagnostic", { message: ev.message, raw: ev.raw });
       } else if (ev.type === "error") {

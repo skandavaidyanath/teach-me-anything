@@ -21,7 +21,7 @@ export function DerivationView({ element, state, onCell }: ElementViewProps<Deri
             type="button"
             onClick={() => onCell({ id: element.id, index: i })}
             className={[
-              "cell settle-in grid grid-cols-[minmax(0,1fr)_auto] items-center gap-6 rounded-md px-5 py-2 text-left text-[22px]",
+              "cell write-on grid grid-cols-[minmax(0,1fr)_auto] items-center gap-6 rounded-md px-5 py-2 text-left text-[22px]",
               tone || focused ? "" : "hover:bg-board",
               pointed ? "outline outline-2 outline-ink" : "",
             ].join(" ")}

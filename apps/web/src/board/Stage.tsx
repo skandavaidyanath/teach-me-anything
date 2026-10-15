@@ -79,7 +79,7 @@ export function Stage({ state, playhead }: { state: PlayheadState; playhead: Pla
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
           <div
             aria-label="While answering"
-            className="spotlight-in pointer-events-auto flex max-h-full max-w-[min(56rem,92%)] flex-col items-center gap-7 overflow-auto rounded-lg border-t-[6px] border-marker bg-surface px-10 py-8 shadow-[0_18px_48px_rgba(23,36,58,0.18)]"
+            className="spotlight-in pointer-events-auto flex max-h-full max-w-[min(56rem,92%)] flex-col items-center gap-7 overflow-auto rounded-lg border-t-[6px] border-marker bg-surface px-10 py-8 shadow-[0_18px_48px_rgba(0,0,0,0.55)]"
           >
             {layerIds.map(render)}
           </div>

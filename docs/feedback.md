@@ -125,3 +125,11 @@ Added as a shape rule and a voice rule for both models (decision 42), plus a thi
 
 The Costco lesson has the Think School shape end to end: a puzzle with real numbers (a rotisserie chicken sold at a loss since 2009 beside 7.4 billion dollars of profit), a "three questions" card, one factor per beat with a formula and a worked example, a turn into each next beat, a myth named and tested against the 2024 fee rise, and a verdict card with conditions and numbered risks. Both lessons are in docs/examples.
 
+## GPU lesson, reviewed 2026-10-15
+
+Verdict: quite a bad session. Six points: the first sentence introduced GPU, processor, core with no connection to the question or to the opening answer; the slow key line sounded unnatural and the voice jumped from fast to slow; the lesson plopped at one level of abstraction without setting the backdrop or the journey; the canvas and the words were out of step, sometimes still, sometimes busy but dull; kernel and warp were used before they were defined, and the reviewer's golden rule is never to introduce a term without defining it; the opening question felt pointless and unused, where "are you familiar with PyTorch" would have grounded everything ("so you know torch.matmul, but what happens under the hood?").
+
+What the log showed: the opening answer reached nobody (decision 43). The script itself was not in the log, which is now fixed: beats are logged whole.
+
+What changed: decision 43 (the opening question as the start, the opening pass, orient after the hook, no term before its definition, key lines framed by silence) and decision 44 (the board looks like Manim: palette, easing, animation vocabulary, every primitive animated). A fresh canvas pass was also asked for, with 3Blue1Brown and Veritasium as the look to reach, and open-source projects searched for reusable style: Manim itself was the one worth taking from.
+

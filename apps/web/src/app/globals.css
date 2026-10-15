@@ -5,6 +5,40 @@
   loud color on the page; correctness colors appear only at checks.
 */
 @theme {
+  /* Chalk: Manim's own palette on a near-black board. Blue is the thing we follow, yellow is attention, green is real or right, red is fictitious or wrong. */
+  --color-board: #0b0d12;
+  --color-surface: #161a22;
+  --color-rail: #111419;
+  --color-line: #444444;
+  --color-ink: #ffffff;
+  --color-ink-soft: #bbbbbb;
+  --color-ink-mute: #888888;
+  --color-marker: #f7d96f;
+  --color-marker-soft: rgba(247, 217, 111, 0.22);
+  --color-correct: #83c167;
+  --color-correct-soft: rgba(131, 193, 103, 0.22);
+  --color-incorrect: #fc6255;
+  --color-incorrect-soft: rgba(252, 98, 85, 0.22);
+  --color-blue: #58c4dd;
+  --color-teal: #5cd0b3;
+  --color-gold: #f0ac5f;
+  --color-pink: #d147bd;
+  --color-purple: #9a72ac;
+  --color-orange: #ff862f;
+  --color-pin-takeaway: #f7d96f;
+  --color-pin-definition: #58c4dd;
+  --color-pin-equation: #83c167;
+  --color-pin-code: #888888;
+
+  --font-sans: var(--font-atkinson), "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-draw: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Paper: the earlier light board, kept one attribute away (data-theme="paper" on <html>). */
+:root[data-theme="paper"] {
   --color-board: #eaeef3;
   --color-surface: #ffffff;
   --color-rail: #dfe5ec;
@@ -18,15 +52,8 @@
   --color-correct-soft: #d6f1e8;
   --color-incorrect: #c3573f;
   --color-incorrect-soft: #f6ddd6;
-  --color-pin-takeaway: #f6c84f;
-  --color-pin-definition: #6f8fb8;
-  --color-pin-equation: #1f9c79;
-  --color-pin-code: #8a97aa;
-
-  --font-sans: var(--font-atkinson), "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
-
-  --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --color-blue: #2f7fb3;
+  --color-pink: #c2457f;
 }
 
 html,
@@ -82,15 +109,15 @@ body {
 }
 .cell[data-tone="marker"] {
   background: var(--color-marker-soft);
-  box-shadow: inset 0 -3px 0 var(--color-marker);
+  box-shadow: inset 0 -3px 0 var(--color-marker), 0 0 18px var(--color-marker-soft);
 }
 .cell[data-tone="correct"] {
   background: var(--color-correct-soft);
-  box-shadow: inset 0 -3px 0 var(--color-correct);
+  box-shadow: inset 0 -3px 0 var(--color-correct), 0 0 18px var(--color-correct-soft);
 }
 .cell[data-tone="incorrect"] {
   background: var(--color-incorrect-soft);
-  box-shadow: inset 0 -3px 0 var(--color-incorrect);
+  box-shadow: inset 0 -3px 0 var(--color-incorrect), 0 0 18px var(--color-incorrect-soft);
 }
 .cell[data-clickable="true"] {
   cursor: pointer;
@@ -128,19 +155,100 @@ body {
   animation: spotlight-in 260ms var(--ease-settle) both;
 }
 
+/* Strokes draw themselves on; filled shapes pop; labels follow. */
+@keyframes draw-on {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw-on {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw-on 720ms var(--ease-draw) forwards;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.pop-in {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pop-in 480ms var(--ease-settle) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.label-in {
+  animation: fade-in 360ms ease-out 420ms both;
+}
+.marker-in {
+  animation: fade-in 200ms ease-out 560ms both;
+}
+/* A line of a derivation writes itself from left to right. */
+@keyframes write-on {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.write-on {
+  animation: write-on 640ms var(--ease-draw) both;
+}
+/* A highlighted thing breathes. */
+@keyframes ring-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.ring-pulse {
+  animation: ring-pulse 900ms ease-in-out infinite alternate;
+}
+.glow-marker {
+  filter: drop-shadow(0 0 6px var(--color-marker));
+}
+.glow-correct {
+  filter: drop-shadow(0 0 6px var(--color-correct));
+}
+.glow-incorrect {
+  filter: drop-shadow(0 0 6px var(--color-incorrect));
+}
+
 /* Elements arriving on the stage. Motion answers an op, nothing else moves. */
 @keyframes settle-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(14px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 .settle-in {
-  animation: settle-in 260ms var(--ease-settle) both;
+  animation: settle-in 520ms var(--ease-settle) both;
 }
 
 .katex-display {

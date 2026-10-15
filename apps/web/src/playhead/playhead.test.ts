@@ -251,11 +251,14 @@ describe("Playhead", () => {
     const reviews: Array<Parameters<NonNullable<Playhead["onReview"]>>[0]> = [];
     ph.onReview = (req) => reviews.push(req);
     ph.start("No");
-    await playToCheck(speaker, ph);
-    expect(reviews).toHaveLength(0);
-    ph.answerCheck({ id: "A", index: 0 });
+    // The opening is reviewed against the calibration answer before anything plays.
     expect(reviews).toHaveLength(1);
-    const req = reviews[0]!;
+    expect(reviews[0]!.window).toMatchObject({ currentBeatId: "b1", current: [], nextBeatId: "b1" });
+    await playToCheck(speaker, ph);
+    expect(reviews).toHaveLength(1);
+    ph.answerCheck({ id: "A", index: 0 });
+    expect(reviews).toHaveLength(2);
+    const req = reviews[1]!;
     expect(req.window.current).toEqual([]);
     expect(req.window.nextBeatId).toBe("b2");
     expect(req.context.record.map((r) => r.kind)).toEqual(["calibration", "check"]);
@@ -322,7 +325,8 @@ describe("routing and reviews, v0.3", () => {
     ph.start("No");
     await playToCheck(speaker, ph);
     ph.answerCheck({ id: "A", index: 0 });
-    const req = reviews[0]!;
+    const req = reviews[reviews.length - 1]!;
+    expect(req.window.nextBeatId).toBe("b2");
     await speakTo(speaker, ph, "The rest follows the same rule until both lists are empty.");
     speaker.finish();
     await until(() => ph.getState().waiting === "review", "holding for the review");
@@ -451,7 +455,7 @@ describe("answer-time figure changes", () => {
 });
 
 describe("pacing", () => {
-  it("a key sentence is spoken slowly, shown as the key caption, and followed by a silence", async () => {
+  it("a key sentence is shown as the key caption and framed by silence, at normal speed", async () => {
     const speaker = new ManualSpeaker();
     const lesson: Lesson = {
       ...mergeSortLesson,
@@ -475,7 +479,7 @@ describe("pacing", () => {
     speaker.finish();
     await speakTo(speaker, ph, "The pull points inward.");
     expect(ph.getState().caption).toMatchObject({ text: "The pull points inward.", key: true });
-    expect(speaker.opts[1]).toEqual({ pace: "slow" });
+    expect(speaker.opts[1]).toBeUndefined();
     const t0 = performance.now();
     speaker.finish();
     await speakTo(speaker, ph, "And that is why.");

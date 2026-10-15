@@ -19,12 +19,12 @@ export type PlannerStreamer = (
   effort: "low" | "medium" | "high",
 ) => AsyncIterable<{ kind: "text"; text: string } | { kind: "final"; model: string | null; inputTokens: number | null; outputTokens: number | null; refusal: boolean }>;
 
-export type SayStats = { says: number; avgWords: number; maxWords: number; keys: number };
+export type SayStats = { says: number; avgWords: number; maxWords: number; keys: number; longestStillRun: number };
 
 export type PlannerEvent =
   | { type: "header"; header: LessonHeader }
   | { type: "diagnostic"; message: string; raw: string }
-  | { type: "beat"; index: number; beat: Beat; issues: string[]; stats?: SayStats }
+  | { type: "beat"; index: number; beat: Beat; issues: string[]; stats?: SayStats; calibrationSeen?: boolean }
   | { type: "outline"; fromIndex: number; outline: OutlineEntry[] }
   | { type: "error"; message: string }
   | { type: "done"; model: string | null; inputTokens: number | null; outputTokens: number | null };
@@ -41,7 +41,8 @@ const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 
 - Each beat has a "summary": one sentence of what it teaches, so the tutor can place questions in the lesson.
 - Ids: beats b1..bN; ops "<beatId>.<letter><n>" (s for say, e show, u update, m move, h highlight, c clear, p pin, k check); elements short like A, B, OUT, T, D, S, P.
 - Elements referenced by update, move, or highlight must have been shown earlier in the lesson.
-- A short calibration question with 3 options opens the lesson; beat 1 must work regardless of the answer.`;
+- The opening question, 3 options, asks what the learner already has that this lesson can start from, and each option names it in their words ("I've used PyTorch", "I've written a kernel", "Neither"). Beat 1 is written before the answer arrives and must work for every option; its first lines are then reshaped to the answer, so write them as the place a tutor would adapt. Beats written after the answer start from it.
+- Beat 1 is the opening, written while the learner reads the opening question, so it is the short beat: the hook, the orientation, one picture, one prediction. The work of the lesson starts in beat 2.`;
 
 const FORMAT = `OUTPUT FORMAT. Write blocks, nothing else. Each block is a line "===HEADER===", "===BEAT===", or "===COMPONENT===", then its content, then a line "===END===". HEADER and BEAT content is one JSON object, strictly valid: double-quoted keys and strings, a comma between every pair of items, no trailing commas, no comments, no text outside the braces. Inside strings, escape backslashes (write \\\\log for \\log) and double quotes.
 The header JSON: {"topic":"...","title":"...","style":"demo" or "write-along" or "case","calibration":{"prompt":"...","options":["...","...","..."]},"outline":[{"id":"b1","title":"...","summary":"..."}, ...]}
@@ -55,15 +56,17 @@ const EXAMPLE_COMPONENT = `===COMPONENT===
   <defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--correct)"/></marker></defs>
   <line x1="200" y1="40" x2="400" y2="40" stroke="var(--ink-mute)" stroke-width="3"/>
   <line id="string" x1="300" y1="40" x2="300" y2="240" stroke="var(--ink)" stroke-width="2"/>
-  <circle id="bob" cx="300" cy="240" r="16" fill="var(--ink)"/>
+  <circle id="bob" cx="300" cy="240" r="16" fill="var(--blue)"/>
   <line id="gravity" x1="300" y1="240" x2="300" y2="300" stroke="var(--correct)" stroke-width="3" marker-end="url(#head)"/>
   <text id="period" x="20" y="340" font-size="14" fill="var(--ink-soft)"></text>
 </svg>
 <script>
   var angle = 0.6, velocity = 0, L = 200, g = 9.8;
   var str = document.getElementById("string"), bob = document.getElementById("bob"), grav = document.getElementById("gravity");
-  tma.onState(function (s) {
-    L = 200 * (s.length || 1);
+  tma.onState(function (s, prev) {
+    var target = 200 * (s.length || 1);
+    if (!prev) L = target;
+    else { var from = L; tma.tween(600, function (p) { L = tma.lerp(from, target, p); }); }
     grav.style.display = s.showForces === false ? "none" : "";
   });
   tma.onFrame(function (t, dt) {
@@ -252,11 +255,20 @@ function allSays(ops: Op[]): Array<Extract<Op, { op: "say" }>> {
 export function sayStats(ops: Op[]): SayStats {
   const says = allSays(ops);
   const counts = says.map((s) => wordCount(s.text));
+  // How many sentences in a row play with nothing changing on the board, at the longest.
+  let run = 0;
+  let longestStillRun = 0;
+  for (const op of ops) {
+    if (op.op === "say" || op.op === "pause") run++;
+    else run = 0;
+    longestStillRun = Math.max(longestStillRun, run);
+  }
   return {
     says: says.length,
     avgWords: counts.length ? Math.round((counts.reduce((a, b) => a + b, 0) / counts.length) * 10) / 10 : 0,
     maxWords: counts.length ? Math.max(...counts) : 0,
     keys: ops.filter((o) => o.op === "say" && o.key).length,
+    longestStillRun,
   };
 }
 
@@ -429,7 +441,29 @@ async function repairBeat(streamer: PlannerStreamer, body: string, errors: strin
   return parsed.ok ? parsed.value : null;
 }
 
-export async function* planLesson(topic: string, lessonId: string, streamer: PlannerStreamer): AsyncGenerator<PlannerEvent> {
+/** The learner's answer to the opening question, which arrives while the lesson is being written. */
+export type CalibrationHandle = { readonly answer: string | null; readonly promise: Promise<string | null>; resolve(answer: string | null): void };
+
+export function calibrationHandle(): CalibrationHandle {
+  let answer: string | null = null;
+  let resolveFn: (a: string | null) => void = () => {};
+  const promise = new Promise<string | null>((r) => (resolveFn = r));
+  return {
+    get answer() {
+      return answer;
+    },
+    promise,
+    resolve(a) {
+      answer = a;
+      resolveFn(a);
+    },
+  };
+}
+
+const calibrationNote = (header: LessonHeader, answer: string | null): string =>
+  answer ? `\n\nThe learner answered the opening question "${header.calibration?.prompt ?? ""}" with "${answer}". Start from what they already have, in their words, and do not re-teach it.` : "";
+
+export async function* planLesson(topic: string, lessonId: string, streamer: PlannerStreamer, calibration: CalibrationHandle = calibrationHandle()): AsyncGenerator<PlannerEvent> {
   const known = new Set<string>();
   const components = new Map<string, Component>();
   let header: LessonHeader | null = null;
@@ -515,12 +549,12 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
     // alone: beat 1 while the learner reads the calibration question, beat 2 (which carries the
     // lesson's figure, the slowest thing to write) while beat 1 plays. Beat 2 is processed after
     // beat 1 so element references resolve in order.
-    const askFor = (index: number): string => {
+    const askFor = (index: number, answer: string | null = null): string => {
       const entry = header!.outline[index]!;
       if (index === 0) {
-        return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only. It must use only instantly rendered elements and work regardless of the calibration answer.`;
+        return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only. It must use only instantly rendered elements and work regardless of the answer to the opening question.`;
       }
-      return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only, following the outline. ${header!.outline[0]!.id} is being written separately with instant elements only, so do not reference its elements; start this beat with what it needs on the board. If the lesson calls for a figure written as code, write its COMPONENT block now and show it in this beat.`;
+      return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only, following the outline. ${header!.outline[0]!.id} is being written separately with instant elements only, so do not reference its elements; start this beat with what it needs on the board. If the lesson calls for a figure written as code, write its COMPONENT block now and show it in this beat.${calibrationNote(header!, answer)}`;
     };
     const collect = async (ask: string, effort: "low" | "medium" | "high" = "low"): Promise<StreamItem[]> => {
       const out: StreamItem[] = [];
@@ -531,7 +565,7 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       }
       return out;
     };
-    const handleFast = async function* (item: StreamItem, index: number): AsyncGenerator<PlannerEvent, boolean> {
+    const handleFast = async function* (item: StreamItem, index: number, calibrationSeen: boolean): AsyncGenerator<PlannerEvent, boolean> {
       if (item.type === "final") {
         meta = { model: item.model, inputTokens: (meta.inputTokens ?? 0) + (item.inputTokens ?? 0), outputTokens: (meta.outputTokens ?? 0) + (item.outputTokens ?? 0) };
         return false;
@@ -546,18 +580,33 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
         if (ev.type === "beat") {
           fastBeats.push(ev.beat);
           got = true;
+          yield { ...ev, calibrationSeen };
+          continue;
         }
         yield ev;
       }
       return got;
     };
 
-    const second = total > 1 && FAST_BEATS > 1 ? collect(askFor(1)) : null;
+    // Beat 2 starts once the learner's opening answer is in, or once beat 1 is done, whichever comes first,
+    // so it can start from what they have without waiting on them.
+    let firstDone: () => void = () => {};
+    const firstDonePromise = new Promise<void>((r) => (firstDone = r));
+    let secondSawCalibration = false;
+    const second =
+      total > 1 && FAST_BEATS > 1
+        ? (async () => {
+            await Promise.race([calibration.promise, firstDonePromise]);
+            secondSawCalibration = calibration.answer !== null;
+            return collect(askFor(1, calibration.answer));
+          })()
+        : null;
     let gotFirst = false;
     for await (const item of streamBlocks(streamer, PLANNER_SYSTEM, askFor(0), "low")) {
       if (gotFirst && item.type === "BEAT") continue;
-      if (yield* handleFast(item, 0)) gotFirst = true;
+      if (yield* handleFast(item, 0, false)) gotFirst = true;
     }
+    firstDone();
     if (!gotFirst) {
       yield { type: "error", message: "the planner produced no first beat" };
       return;
@@ -566,7 +615,7 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       let gotSecond = false;
       for (const item of await second) {
         if (gotSecond && item.type === "BEAT") continue;
-        if (yield* handleFast(item, 1)) gotSecond = true;
+        if (yield* handleFast(item, 1, secondSawCalibration)) gotSecond = true;
       }
     }
 
@@ -577,17 +626,18 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       const written = fastBeats.map((b) => `===BEAT===\n${JSON.stringify(b)}\n===END===`).join("\n");
       const third = header.outline[fastBeats.length]!;
       const restIds = header.outline.slice(fastBeats.length + 1).map((b) => b.id);
-      const askThird = `Topic: ${topic}\n\nHere is the header and the beats you already wrote:\n${headerBlock}\n${written}\n\nWrite the BEAT block for ${third.id} only, following the outline. Elements shown in earlier beats stay on the board unless you clear them; drive the figure with update ops rather than adding new ones.`;
+      const note = calibrationNote(header, calibration.answer);
+      const askThird = `Topic: ${topic}\n\nHere is the header and the beats you already wrote:\n${headerBlock}\n${written}\n\nWrite the BEAT block for ${third.id} only, following the outline. Elements shown in earlier beats stay on the board unless you clear them; drive the figure with update ops rather than adding new ones.${note}`;
       const askRest =
         restIds.length > 0
-          ? `Topic: ${topic}\n\nHere is the header and the beats you already wrote:\n${headerBlock}\n${written}\n\n${third.id} is being written separately and continues straight from ${fastBeats[fastBeats.length - 1]!.id} without adding new elements. Now write BEAT blocks for ${restIds.join(", ")}, in order, one block each, following the outline. Elements shown in earlier beats stay on the board unless you clear them.`
+          ? `Topic: ${topic}\n\nHere is the header and the beats you already wrote:\n${headerBlock}\n${written}\n\n${third.id} is being written separately and continues straight from ${fastBeats[fastBeats.length - 1]!.id} without adding new elements. Now write BEAT blocks for ${restIds.join(", ")}, in order, one block each, following the outline. Elements shown in earlier beats stay on the board unless you clear them.${note}`
           : null;
       const rest = askRest ? eager(streamBlocks(streamer, PLANNER_SYSTEM, askRest, "high")) : null;
       let index = fastBeats.length;
       let gotThird = false;
       for (const item of await collect(askThird, "medium")) {
         if (gotThird && item.type === "BEAT") continue;
-        if (yield* handleFast(item, index)) gotThird = true;
+        if (yield* handleFast(item, index, calibration.answer !== null)) gotThird = true;
       }
       if (gotThird) index++;
       if (rest) {

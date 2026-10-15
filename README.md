@@ -33,7 +33,7 @@ The point of v0.0 is to feel the rhythm and the interrupts, so push on those.
 
 ## What is not in v0.3
 
-No blackboard writing yet, and no art direction: figures are the model's own SVG. Beat 1 never carries a figure, so a lesson on something physical shows it moving from part 2. Nothing persists beyond a per-session replay log under `data/local/`. Desktop only. Voice input is typing only.
+No blackboard writing yet. The board uses Manim's palette and animation vocabulary on a near-black surface; add data-theme="paper" to the html element for the light board. Beat 1 never carries a figure, so a lesson on something physical shows it moving from part 2. Nothing persists beyond a per-session replay log under `data/local/`. Desktop only. Voice input is typing only.
 
 ## Changing how it teaches
 

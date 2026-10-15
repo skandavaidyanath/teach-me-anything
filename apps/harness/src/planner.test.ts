@@ -181,24 +181,54 @@ describe("component blocks", () => {
   });
 });
 
-describe("fast tier concurrency", () => {
-  it("starts writing beat 2 before beat 1 has finished streaming, and still delivers them in order", async () => {
-    const started: string[] = [];
-    const streamer: PlannerStreamer = async function* (_system, user, effort) {
-      const which = /HEADER block only/.test(user) ? "header" : /for b1 only/.test(user) ? "b1" : /for b2 only/.test(user) ? "b2" : "rest";
+describe("fast tier concurrency and the opening answer", () => {
+  function recording(started: string[], prompts: Record<string, string>): PlannerStreamer {
+    return async function* (_system, user, effort) {
+      const which = /HEADER block only/.test(user) ? "header" : /for b1 only/.test(user) ? "b1" : /for b2 only/.test(user) ? "b2" : /for b3 only/.test(user) ? "b3" : "rest";
       started.push(which);
-      const text = which === "header" ? block("HEADER", header) : which === "b1" ? block("BEAT", beat1) : which === "b2" ? block("BEAT", beat2) : "";
+      prompts[which] = user;
+      const text = which === "header" ? block("HEADER", { ...header, outline: [...header.outline, { id: "b3", title: "Done", summary: "Wrap up." }] }) : which === "b1" ? block("BEAT", beat1) : which === "b2" ? block("BEAT", beat2) : "";
       for (const piece of text.match(/.{1,40}/gs) ?? []) {
         await new Promise((r) => setTimeout(r, which === "b1" ? 2 : 0));
         yield { kind: "text", text: piece };
       }
       yield { kind: "final", model: "fake", inputTokens: 1, outputTokens: 1, refusal: false };
+      started.push(`${which}:done`);
       void effort;
     };
+  }
+
+  it("with the answer in hand, starts beat 2 before beat 1 has finished and tells later beats what the learner has", async () => {
+    const started: string[] = [];
+    const prompts: Record<string, string> = {};
+    const { calibrationHandle } = await import("./planner");
+    const calibration = calibrationHandle();
+    calibration.resolve("I've used PyTorch");
     const events = [];
-    for await (const ev of planLesson("binary search", "plan-2", streamer)) events.push(ev);
-    expect(started.slice(0, 3)).toEqual(["header", "b2", "b1"]);
-    expect(events.filter((e) => e.type === "beat").map((e) => (e.type === "beat" ? e.index : -1))).toEqual([0, 1]);
+    for await (const ev of planLesson("binary search", "plan-2", recording(started, prompts), calibration)) events.push(ev);
+    expect(started.indexOf("b2")).toBeLessThan(started.indexOf("b1:done"));
+    expect(prompts["b2"]).toContain("I've used PyTorch");
+    expect(prompts["b3"]).toContain("I've used PyTorch");
+    expect(prompts["b1"]).not.toContain("I've used PyTorch");
+    const beats = events.filter((e) => e.type === "beat");
+    expect(beats.map((e) => (e.type === "beat" ? [e.index, e.calibrationSeen] : null))).toEqual([
+      [0, false],
+      [1, true],
+    ]);
+  });
+
+  it("without an answer yet, beat 2 waits for beat 1 and is marked as written blind", async () => {
+    const started: string[] = [];
+    const prompts: Record<string, string> = {};
+    const { calibrationHandle } = await import("./planner");
+    const events = [];
+    for await (const ev of planLesson("binary search", "plan-2b", recording(started, prompts), calibrationHandle())) events.push(ev);
+    expect(started.indexOf("b2")).toBeGreaterThan(started.indexOf("b1:done"));
+    const beats = events.filter((e) => e.type === "beat");
+    expect(beats.map((e) => (e.type === "beat" ? [e.index, e.calibrationSeen] : null))).toEqual([
+      [0, false],
+      [1, false],
+    ]);
   });
 });
 

@@ -97,7 +97,7 @@ export function LessonApp({ localLesson, topic, lessonList }: { localLesson: Les
             return;
           }
           case "lesson.beat":
-            ph?.appendBeat(msg.beat, msg.index);
+            ph?.appendBeat(msg.beat, msg.index, { calibrationSeen: msg.calibrationSeen });
             return;
           case "lesson.replace":
             ph?.replaceFrom(msg.fromIndex, msg.outline);
