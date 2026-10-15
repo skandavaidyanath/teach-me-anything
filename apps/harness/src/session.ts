@@ -44,7 +44,8 @@ export class Session {
 
   private send(msg: ServerMessage): void {
     if (this.closed) return;
-    this.log.write("out", msg.type === "lesson.beat" ? { type: msg.type, index: msg.index, beatId: msg.beat.id, ops: msg.beat.ops.length } : msg);
+    // Beats are logged whole, code and all: a review has to be able to quote the script that played.
+    this.log.write("out", msg);
     if (this.socket.readyState === this.socket.OPEN) this.socket.send(JSON.stringify(msg));
   }
 
