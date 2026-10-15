@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import type { Element, ElementRef } from "@tma/schema";
 import type { Playhead, PlayheadState } from "@/playhead/playhead";
 import { ArrayRowView } from "./elements/ArrayRowView";
@@ -36,26 +37,42 @@ export function Stage({ state, playhead }: { state: PlayheadState; playhead: Pla
   const layerIds = base ? state.board.order.filter((id) => !base.has(id)) : [];
   const baseIds = base ? state.board.order.filter((id) => base.has(id)) : state.board.order;
 
+  // The board scrolls; the stage keeps whatever the last op touched in view, since that is what the words are about.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const touched = state.board.lastTouched;
+  useEffect(() => {
+    if (!touched || !stageRef.current) return;
+    const node = stageRef.current.querySelector<HTMLElement>(`[data-element-id="${CSS.escape(touched)}"]`);
+    node?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [touched, state.board.order.length, state.board.highlights]);
+
   const render = (id: string) => {
     const el = state.board.elements[id];
     if (!el) return null;
     const props = { state, clickable, onCell };
-    switch (el.kind) {
-      case "array_row":
-        return <ArrayRowView key={id} element={el} {...props} />;
-      case "text_card":
-        return <TextCardView key={id} element={el} {...props} />;
-      case "latex":
-        return <LatexView key={id} element={el} {...props} />;
-      case "split_tree":
-        return <SplitTreeView key={id} element={el} {...props} />;
-      case "scene":
-        return <SceneView key={id} element={el} {...props} />;
-      case "derivation":
-        return <DerivationView key={id} element={el} {...props} />;
-      case "component":
-        return <ComponentView key={id} element={el} {...props} />;
-    }
+    const view = (() => {
+      switch (el.kind) {
+        case "array_row":
+          return <ArrayRowView element={el} {...props} />;
+        case "text_card":
+          return <TextCardView element={el} {...props} />;
+        case "latex":
+          return <LatexView element={el} {...props} />;
+        case "split_tree":
+          return <SplitTreeView element={el} {...props} />;
+        case "scene":
+          return <SceneView element={el} {...props} />;
+        case "derivation":
+          return <DerivationView element={el} {...props} />;
+        case "component":
+          return <ComponentView element={el} {...props} />;
+      }
+    })();
+    return (
+      <div key={id} data-element-id={id} className="flex justify-center">
+        {view}
+      </div>
+    );
   };
 
   return (
@@ -64,6 +81,7 @@ export function Stage({ state, playhead }: { state: PlayheadState; playhead: Pla
       className="relative flex min-h-0 flex-col overflow-hidden rounded-lg border border-line bg-surface"
     >
       <div
+        ref={stageRef}
         className={[
           "flex flex-1 flex-col items-center justify-center gap-9 overflow-auto p-8 transition-opacity duration-300",
           layerIds.length > 0 ? "opacity-35" : "",

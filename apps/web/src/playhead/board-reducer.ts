@@ -7,9 +7,11 @@ export type BoardState = {
   order: string[];
   highlights: Highlight[];
   pins: Pin[];
+  /** The element the last board op touched, so the stage can keep it in view. */
+  lastTouched: string | null;
 };
 
-export const emptyBoard: BoardState = { elements: {}, order: [], highlights: [], pins: [] };
+export const emptyBoard: BoardState = { elements: {}, order: [], highlights: [], pins: [], lastTouched: null };
 
 /**
  * Pure reducer. Board ops produce a new state; say, pause, and check leave it
@@ -32,6 +34,7 @@ export function applyOp(state: BoardState, op: Op): BoardState {
         ...state,
         elements: { ...state.elements, [element.id]: element },
         order: exists ? state.order : [...state.order, element.id],
+        lastTouched: element.id,
       };
     }
     case "update": {
@@ -49,7 +52,7 @@ export function applyOp(state: BoardState, op: Op): BoardState {
         // New values have no relation to the old cells; give them fresh identity.
         next = withCellIds({ ...next, cellIds: undefined }, op.id);
       }
-      return { ...state, elements: { ...state.elements, [op.target]: next } };
+      return { ...state, elements: { ...state.elements, [op.target]: next }, lastTouched: op.target };
     }
     case "move": {
       const src = state.elements[op.from.id];
@@ -73,17 +76,17 @@ export function applyOp(state: BoardState, op: Op): BoardState {
       if (op.from.id !== op.to.id) elements[op.from.id] = { ...srcWithIds, values: removedValues, cellIds: removedIds };
       // Indices in the touched rows shifted, so highlights on them no longer point at the same cells.
       const highlights = state.highlights.filter((h) => h.ref.id !== op.from.id && h.ref.id !== op.to.id);
-      return { ...state, elements, highlights };
+      return { ...state, elements, highlights, lastTouched: op.to.id };
     }
     case "highlight": {
       const tone = op.tone ?? "marker";
-      return { ...state, highlights: op.targets.map((ref) => ({ ref, tone })) };
+      return { ...state, highlights: op.targets.map((ref) => ({ ref, tone })), lastTouched: op.targets[0]?.id ?? state.lastTouched };
     }
     case "clear_highlights":
       return state.highlights.length === 0 ? state : { ...state, highlights: [] };
     case "clear": {
       if (!op.targets) {
-        return { ...state, elements: {}, order: [], highlights: [] };
+        return { ...state, elements: {}, order: [], highlights: [], lastTouched: null };
       }
       const drop = new Set(op.targets);
       const elements = { ...state.elements };
