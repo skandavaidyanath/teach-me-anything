@@ -123,7 +123,8 @@ describe("component element", () => {
       ],
     };
     expect(validateLesson(lesson).issues).toEqual([]);
-    const bad = { ...lesson, beats: [{ ...lesson.beats[0]!, ops: [{ op: "show", id: "e1", element: { kind: "component", id: "P", width: 600, height: 360 } }] }] };
-    expect(validateLesson(bad).lesson).toBeNull();
+    // A figure may be shown before its code exists; the code follows.
+    const pending = { ...lesson, beats: [{ ...lesson.beats[0]!, ops: [{ op: "show", id: "e1", element: { kind: "component", id: "P", width: 600, height: 360 } }, lesson.beats[0]!.ops[3]!] }] };
+    expect(validateLesson(pending).lesson).not.toBeNull();
   });
 });

@@ -9,6 +9,8 @@ import { tutor, type TextStreamer, type TutorInput } from "./tutor";
 export type SessionDeps = {
   tutorStreamer: TextStreamer | null;
   plannerStreamer: PlannerStreamer | null;
+  /** Writes the lesson's figure; a faster model than the Planner's. Falls back to the Planner's. */
+  figureStreamer?: PlannerStreamer | null;
   tts: { available: boolean; voiceId: string | null };
   logDir: string;
   /** Milliseconds between beats when streaming a bundled lesson, to stand in for the Planner. */
@@ -151,7 +153,7 @@ export class Session {
     const started = performance.now();
     const plannedId = `plan-${this.id.slice(0, 8)}`;
     this.calibration = calibrationHandle();
-    for await (const ev of planLesson(topic, plannedId, this.deps.plannerStreamer, this.calibration)) {
+    for await (const ev of planLesson(topic, plannedId, this.deps.plannerStreamer, this.calibration, { figureStreamer: this.deps.figureStreamer ?? null })) {
       if (this.closed) return;
       if (ev.type === "header") {
         this.header = ev.header;
@@ -161,6 +163,9 @@ export class Session {
         this.beats[ev.index] = ev.beat;
         this.log.write("planner", { phase: "beat", index: ev.index, ms: Math.round(performance.now() - started), issues: ev.issues, ops: ev.beat.ops.length, stats: ev.stats });
         this.send({ type: "lesson.beat", index: ev.index, beat: ev.beat, ...(ev.calibrationSeen !== undefined ? { calibrationSeen: ev.calibrationSeen } : {}) });
+      } else if (ev.type === "component") {
+        this.log.write("planner", { phase: "figure", id: ev.element.id, ms: Math.round(performance.now() - started), lines: (ev.element.code ?? "").split("\n").length });
+        this.send({ type: "lesson.component", element: ev.element });
       } else if (ev.type === "diagnostic") {
         this.log.write("planner_diagnostic", { message: ev.message, raw: ev.raw });
       } else if (ev.type === "error") {

@@ -488,3 +488,46 @@ describe("pacing", () => {
     expect(ph.getState().caption?.key).toBeUndefined();
   });
 });
+
+describe("a figure whose code arrives late", () => {
+  const lesson: Lesson = {
+    ...mergeSortLesson,
+    beats: [
+      {
+        id: "g1",
+        title: "Fig",
+        ops: [
+          { op: "show", id: "g1.e1", element: { kind: "component", id: "P", width: 960, height: 540, state: { wind: 1 } } },
+          { op: "say", id: "g1.s1", text: "Watch." },
+          { op: "update", id: "g1.u1", target: "P", patch: { state: { wind: 2 } } },
+          { op: "say", id: "g1.s2", text: "Faster." },
+          { op: "check", id: "g1.k1", kind: "choice", prompt: "Ok?", options: ["Yes"], graded: false },
+        ],
+      },
+    ],
+  };
+  const figure = { kind: "component" as const, id: "P", title: "The machine", width: 960, height: 540, code: "<svg/>", state: { wind: 1, show: true }, parts: ["dot"] };
+
+  it("takes the code at show time when it arrived first", async () => {
+    const speaker = new ManualSpeaker();
+    const ph = Playhead.fromLesson(lesson, { speaker, settleScale: 0 });
+    ph.attachComponent(figure);
+    ph.start(null);
+    await speakTo(speaker, ph, "Watch.");
+    expect(ph.getState().board.elements["P"]).toMatchObject({ code: "<svg/>", parts: ["dot"], state: { wind: 1, show: true } });
+  });
+
+  it("lands on the board when it arrives after the show, keeping the state the beat set", async () => {
+    const speaker = new ManualSpeaker();
+    const ph = Playhead.fromLesson(lesson, { speaker, settleScale: 0 });
+    ph.start(null);
+    await speakTo(speaker, ph, "Watch.");
+    expect(ph.getState().board.elements["P"]).toMatchObject({ id: "P" });
+    expect((ph.getState().board.elements["P"] as { code?: string }).code).toBeUndefined();
+    speaker.finish();
+    await speakTo(speaker, ph, "Faster.");
+    ph.attachComponent(figure);
+    expect(ph.getState().board.elements["P"]).toMatchObject({ code: "<svg/>", title: "The machine", state: { wind: 2, show: true } });
+  });
+});
+

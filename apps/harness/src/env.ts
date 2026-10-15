@@ -22,6 +22,8 @@ export const config = {
   // The Tutor is on the clock; Sonnet's first token comes well ahead of Opus's at the same effort.
   tutorModel: process.env["TUTOR_MODEL"] ?? "claude-sonnet-5-5",
   plannerModel: process.env["PLANNER_MODEL"] ?? "claude-opus-5-5",
+  // The figure is code; Sonnet writes SVG and JavaScript well and about twice as fast as Opus, which is what the opening needs.
+  figureModel: process.env["FIGURE_MODEL"] ?? "claude-sonnet-5-5",
   dataDir: path.join(repoRoot, "data", "local"),
   allowedOrigins: (process.env["HARNESS_ALLOWED_ORIGINS"] ?? "http://localhost:3000,http://127.0.0.1:3000").split(","),
 };

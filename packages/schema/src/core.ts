@@ -124,9 +124,11 @@ export const ComponentSchema = z.object({
   kind: z.literal("component"),
   ...ElementBase,
   title: z.string().optional(),
-  width: z.number().positive(),
-  height: z.number().positive(),
-  code: z.string().min(1),
+  /** Frame size in CSS pixels; a figure shown by reference takes them from its code when that arrives. */
+  width: z.number().positive().optional(),
+  height: z.number().positive().optional(),
+  /** Absent while the figure is still being written; the harness sends the code when it is ready. */
+  code: z.string().min(1).optional(),
   state: z.record(z.string(), z.unknown()).optional(),
   /** What each state field means and what it may be set to, for the Tutor. */
   stateDoc: z.string().optional(),

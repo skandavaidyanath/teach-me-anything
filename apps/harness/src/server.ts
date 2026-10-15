@@ -13,6 +13,7 @@ const tts = new TtsService();
 const anthropic = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey }) : null;
 const tutorStreamer = anthropic ? makeClaudeStreamer(anthropic) : null;
 const plannerStreamer = anthropic ? makeClaudePlannerStreamer(anthropic) : null;
+const figureStreamer = anthropic ? makeClaudePlannerStreamer(anthropic, config.figureModel) : null;
 
 type VoiceEntry = { id: string; name: string; description: string };
 let voicesCache: { at: number; voices: VoiceEntry[] } | null = null;
@@ -99,6 +100,7 @@ wss.on("connection", (ws) => {
   const session = attachSession(ws, {
     tutorStreamer,
     plannerStreamer,
+    figureStreamer,
     tts: { available: tts.available, voiceId: tts.available ? config.cartesiaVoiceId : null },
     logDir: path.join(config.dataDir, "sessions"),
   });
@@ -107,5 +109,5 @@ wss.on("connection", (ws) => {
 });
 
 server.listen(config.port, () => {
-  console.log(`[harness] listening on http://localhost:${config.port}  ws: /ws  tts: ${tts.available ? "cartesia" : "off"}  tutor: ${tutorStreamer ? config.tutorModel : "off"}  planner: ${plannerStreamer ? config.plannerModel : "off"}`);
+  console.log(`[harness] listening on http://localhost:${config.port}  ws: /ws  tts: ${tts.available ? "cartesia" : "off"}  tutor: ${tutorStreamer ? config.tutorModel : "off"}  planner: ${plannerStreamer ? config.plannerModel : "off"}  figure: ${figureStreamer ? config.figureModel : "off"}`);
 });

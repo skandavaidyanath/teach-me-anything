@@ -102,6 +102,9 @@ export function LessonApp({ localLesson, topic, lessonList }: { localLesson: Les
           case "lesson.replace":
             ph?.replaceFrom(msg.fromIndex, msg.outline);
             return;
+          case "lesson.component":
+            ph?.attachComponent(msg.element);
+            return;
           case "lesson.complete":
             return;
           case "lesson.error":

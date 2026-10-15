@@ -60,7 +60,11 @@ var api={
     r.setAttribute("x",b.x-8);r.setAttribute("y",b.y-8);r.setAttribute("width",b.width+16);r.setAttribute("height",b.height+16);r.setAttribute("rx",6);r.setAttribute("fill","none");r.setAttribute("stroke",color||palette.yellow);r.setAttribute("stroke-width",3);
     e.ownerSVGElement.appendChild(r);var total=ms||1200;return api.create(r,total*0.45).then(function(){return api.tween(total*0.25,function(){});}).then(function(){return api.fadeOut(r,total*0.3);}).then(function(){r.remove();});},
   attr:function(x,to,ms){var e=el(x);if(!e)return Promise.resolve();var from={};for(var k in to){var v=parseFloat(e.getAttribute(k));from[k]=isNaN(v)?0:v;}
-    return api.tween(ms||600,function(p){for(var k in to){e.setAttribute(k,from[k]+(to[k]-from[k])*p);}});}
+    return api.tween(ms||600,function(p){for(var k in to){e.setAttribute(k,from[k]+(to[k]-from[k])*p);}});},
+  tone:function(freq,ms,opts){opts=opts||{};post("sound",{kind:"tone",freqs:[freq],ms:ms,wave:opts.wave,gain:opts.gain});},
+  chord:function(freqs,ms,opts){opts=opts||{};post("sound",{kind:"chord",freqs:freqs,ms:ms,wave:opts.wave,gain:opts.gain});},
+  click:function(){post("sound",{kind:"click"});},
+  noise:function(ms,gain){post("sound",{kind:"noise",ms:ms,gain:gain});}
 };
 Object.defineProperty(window,"tma",{value:api,writable:false});
 function tick(now){

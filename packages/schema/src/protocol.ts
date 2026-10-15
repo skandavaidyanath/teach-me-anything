@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BeatSchema, BranchSchema, CalibrationSchema, OpSchema, ResumeSchema, type Lesson } from "./core";
+import { BeatSchema, BranchSchema, CalibrationSchema, ComponentSchema, OpSchema, ResumeSchema, type Lesson } from "./core";
 
 /**
  * The wire protocol between the client runtime and the harness. The header
@@ -138,6 +138,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("lesson.header"), header: LessonHeaderSchema, source: z.enum(["bundled", "planner"]) }),
   /** `calibrationSeen` is false when the beat was written before the learner's opening answer could reach the Planner. */
   z.object({ type: z.literal("lesson.beat"), index: z.number(), beat: BeatSchema, calibrationSeen: z.boolean().optional() }),
+  /** A figure's code, arriving after a beat that shows it by reference. */
+  z.object({ type: z.literal("lesson.component"), element: ComponentSchema }),
   /** Replan: beats from `fromIndex` on are replaced; the outline is replaced from that index too. */
   z.object({ type: z.literal("lesson.replace"), fromIndex: z.number(), outline: z.array(OutlineEntrySchema), reason: z.string() }),
   z.object({ type: z.literal("lesson.complete") }),

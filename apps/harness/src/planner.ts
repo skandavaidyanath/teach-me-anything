@@ -25,6 +25,8 @@ export type PlannerEvent =
   | { type: "header"; header: LessonHeader }
   | { type: "diagnostic"; message: string; raw: string }
   | { type: "beat"; index: number; beat: Beat; issues: string[]; stats?: SayStats; calibrationSeen?: boolean }
+  /** The lesson's figure, ready after a beat that shows it by reference was already sent. */
+  | { type: "component"; element: Component }
   | { type: "outline"; fromIndex: number; outline: OutlineEntry[] }
   | { type: "error"; message: string }
   | { type: "done"; model: string | null; inputTokens: number | null; outputTokens: number | null };
@@ -34,7 +36,7 @@ const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 
 - One sentence per say op, plain, written to be spoken aloud. No markdown. Spell out symbols the way a person would say them.
 - Shape the delivery where it matters: "key": true on a sentence the listener needs to land (spoken slowly, with a breath after, set apart in the caption), "pace" on a sentence that should go slower or quicker, a pause op where silence does work. You decide which and how often.
 - Every say op refers to something the learner can see. Highlight what you are talking about. When a value moves, use a move op so it travels. Use the derivation element for step-by-step math, the split_tree for halving, rows for lists, a scene for a still diagram, and a component for anything that moves, changes viewpoint, or has parts that interact.
-- In demo mode, write one component for the lesson (a simulation or mechanism with state), introduce it in beat 2, and drive it with update ops in later beats rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. In write-along mode, the lines are a derivation element shown with revealed:1 and revealed one more line per update as it is spoken. In case mode, the numbers live in one chart component whose state picks the factor shown, with rows and cards for the framework. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
+- In demo mode, the lesson has one figure (a simulation or mechanism with state), specified in the header as "figure" and implemented in its own call: it is on the board from the first sentence of beat 1, alive, and every later beat drives it with update ops rather than adding new figures. Its stateDoc must say what each field means and what it may be set to, because the tutor will change it when the learner asks. In write-along mode, the lines are a derivation element shown with revealed:1 and revealed one more line per update as it is spoken. In case mode, the numbers live in one chart component whose state picks the factor shown, with rows and cards for the framework. Beat 1 uses only the instant elements (rows, cards, formulas, derivations, scenes) so the lesson starts at once.
 - The reaction to a check shows the answer on the board, with an update or a highlight, before the sentence that explains it.
 - Pin one idea per beat with a short bold title and one sentence of body. Pin formulas as kind "equation" with "tex".
 - Checks have a known answer: choice with 3 options and an "expected" list of accepted answers (include the exact option text), or click_cell with targets and an expected target. The last beat's check may be an ungraded "want to go deeper?" prompt. Reactions: onCorrect one sentence; onIncorrect a highlight or update, one or two sentences that teach, then clear_highlights.
@@ -42,10 +44,10 @@ const RULES = `You write short, spoken, board-based lessons. A lesson is 4 to 6 
 - Ids: beats b1..bN; ops "<beatId>.<letter><n>" (s for say, e show, u update, m move, h highlight, c clear, p pin, k check); elements short like A, B, OUT, T, D, S, P.
 - Elements referenced by update, move, or highlight must have been shown earlier in the lesson.
 - The opening question, 3 options, asks what the learner already has that this lesson can start from, and each option names it in their words ("I've used PyTorch", "I've written a kernel", "Neither"). Beat 1 is written before the answer arrives and must work for every option; its first lines are then reshaped to the answer, so write them as the place a tutor would adapt. Beats written after the answer start from it.
-- Beat 1 is the opening, written while the learner reads the opening question, so it is the short beat: the hook, the orientation, one picture, one prediction. The work of the lesson starts in beat 2.`;
+- Beat 1 is the opening, written while the learner reads the opening question, so it is the short beat: the hook on the figure, the orientation, one prediction. The work of the lesson starts in beat 2. The opening has no key line: a key line marks a reveal the learner has just watched, and while the stage is being set there is nothing to mark yet.`;
 
 const FORMAT = `OUTPUT FORMAT. Write blocks, nothing else. Each block is a line "===HEADER===", "===BEAT===", or "===COMPONENT===", then its content, then a line "===END===". HEADER and BEAT content is one JSON object, strictly valid: double-quoted keys and strings, a comma between every pair of items, no trailing commas, no comments, no text outside the braces. Inside strings, escape backslashes (write \\\\log for \\log) and double quotes.
-The header JSON: {"topic":"...","title":"...","style":"demo" or "write-along" or "case","calibration":{"prompt":"...","options":["...","...","..."]},"outline":[{"id":"b1","title":"...","summary":"..."}, ...]}
+The header JSON: {"topic":"...","title":"...","style":"demo" or "write-along" or "case","calibration":{"prompt":"...","options":["...","...","..."]},"outline":[{"id":"b1","title":"...","summary":"..."}, ...],"figure":{"id":"P","title":"...","width":960,"height":540,"state":{...},"stateDoc":"each field, what it means and what it may be set to","parts":["..."],"brief":"what it shows, how it moves at rest, how it changes with each state field, what it sounds like"}}. The figure is the one object the lesson is about, designed here so every beat can drive it; omit it only when the lesson has nothing to show that moves.
 Each beat JSON: {"id":"b1","title":"...","summary":"...","ops":[...]}
 A COMPONENT block carries a figure's code unescaped. Its first line is a JSON object with every field but "code" ({"id":"P","title":"A pendulum","width":600,"height":360,"state":{"length":1},"stateDoc":"length: 0.5 to 2","parts":["bob","string","gravity"]}), and the lines after it up to ===END=== are the code. Write the block before the first beat that shows the figure, and show it with {"op":"show","id":"b2.e1","element":{"kind":"component","id":"P"}}; the code is attached from the block.`;
 
@@ -109,13 +111,31 @@ function exampleBlocks(): string {
 
 export const PLANNER_SYSTEM = `${RULES}\n\n${STYLE_GUIDE}\n\n${PRIMITIVES_DOC}\n\n${FORMAT}\n\nEXAMPLE of the format (the format only; its wording predates the style rules above), from a lesson on merge sort, header and the first two beats:\n${exampleBlocks()}\n\nEXAMPLE of a COMPONENT block and a beat that uses it, from a different lesson, on pendulums:\n${EXAMPLE_COMPONENT}`;
 
+const FigureSpecSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().optional(),
+  width: z.number().positive().optional(),
+  height: z.number().positive().optional(),
+  state: z.record(z.string(), z.unknown()).optional(),
+  stateDoc: z.string().optional(),
+  parts: z.array(z.string()).optional(),
+  brief: z.string().optional(),
+});
+export type FigureSpec = z.infer<typeof FigureSpecSchema>;
+
 const HeaderBlockSchema = z.object({
   topic: z.string().min(1),
   title: z.string().min(1),
   style: z.enum(["demo", "write-along", "case"]).optional(),
   calibration: z.object({ prompt: z.string().min(1), options: z.array(z.string().min(1)).min(2) }).optional(),
   outline: z.array(z.object({ id: z.string().min(1), title: z.string().min(1), summary: z.string().optional() })).min(2),
+  figure: FigureSpecSchema.optional(),
 });
+
+const figureNote = (spec: FigureSpec | null): string =>
+  spec
+    ? `\n\nThe lesson's figure, ${spec.id}${spec.title ? ` ("${spec.title}")` : ""}, is being implemented separately from this spec: state ${JSON.stringify(spec.state ?? {})}; ${spec.stateDoc ?? ""}${spec.parts ? `; parts ${spec.parts.join(", ")}` : ""}. ${spec.brief ?? ""} Show it with {"kind":"component","id":"${spec.id}"} (the code is attached for you), drive it with update ops on those state fields, and highlight its parts.`
+    : "";
 const OutlineBlockSchema = z.object({ outline: HeaderBlockSchema.shape.outline });
 
 export type BlockType = "HEADER" | "BEAT" | "OUTLINE" | "COMPONENT";
@@ -179,7 +199,9 @@ export function attachComponents(raw: unknown, components: Map<string, Component
           if (el["kind"] === "component" && typeof el["code"] !== "string") {
             const known = typeof el["id"] === "string" ? components.get(el["id"]) : undefined;
             if (!known) {
+              // Shown by reference before its code exists: it stays, and the code follows when it is ready.
               dropped.push(String(el["id"] ?? "?"));
+              out.push(op);
               continue;
             }
             out.push({ ...o, element: { ...known, ...el, code: known.code } });
@@ -463,14 +485,18 @@ export function calibrationHandle(): CalibrationHandle {
 const calibrationNote = (header: LessonHeader, answer: string | null): string =>
   answer ? `\n\nThe learner answered the opening question "${header.calibration?.prompt ?? ""}" with "${answer}". Start from what they already have, in their words, and do not re-teach it.` : "";
 
-export async function* planLesson(topic: string, lessonId: string, streamer: PlannerStreamer, calibration: CalibrationHandle = calibrationHandle()): AsyncGenerator<PlannerEvent> {
+export async function* planLesson(topic: string, lessonId: string, streamer: PlannerStreamer, calibration: CalibrationHandle = calibrationHandle(), opts: { figureGraceMs?: number; figureStreamer?: PlannerStreamer | null } = {}): AsyncGenerator<PlannerEvent> {
   const known = new Set<string>();
   const components = new Map<string, Component>();
   let header: LessonHeader | null = null;
+  let figureSpec: FigureSpec | null = null;
   const fastBeats: Beat[] = [];
   let meta = { model: null as string | null, inputTokens: null as number | null, outputTokens: null as number | null };
   /** How many beats the fast tier writes before the slow tier takes over. */
   const FAST_BEATS = 2;
+  /** How long a beat waits for the figure's code before going out without it: the opening is about the figure, so it waits a while. */
+  const FIGURE_GRACE_MS = opts.figureGraceMs ?? 25000;
+  const figureStreamer = opts.figureStreamer ?? streamer;
 
   const handleBeat = async function* (body: string, index: number): AsyncGenerator<PlannerEvent> {
     const parsed = parseLooseJson(body);
@@ -498,7 +524,7 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       return;
     }
     collectShown(result.beat.ops, known);
-    yield { type: "beat", index, beat: result.beat, issues: [...attached.dropped.map((id) => `dropped show of component ${id}: no code block`), ...result.issues], stats: result.stats };
+    yield { type: "beat", index, beat: result.beat, issues: [...attached.dropped.map((id) => `figure ${id} shown before its code arrived`), ...result.issues], stats: result.stats };
   };
 
   const handleComponent = function* (body: string): Generator<PlannerEvent> {
@@ -535,6 +561,7 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
           return;
         }
         header = headerFromBlock(parsed.data, lessonId);
+        figureSpec = parsed.data.figure ?? null;
         yield { type: "header", header };
       }
     }
@@ -542,8 +569,39 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       yield { type: "error", message: "the planner produced no header" };
       return;
     }
-    const headerBlock = `===HEADER===\n${JSON.stringify({ topic: header.topic, title: header.title, style: header.style, calibration: header.calibration, outline: header.outline })}\n===END===`;
+    const headerBlock = `===HEADER===\n${JSON.stringify({ topic: header.topic, title: header.title, style: header.style, calibration: header.calibration, outline: header.outline, ...(figureSpec ? { figure: figureSpec } : {}) })}\n===END===`;
     const total = header.outline.length;
+
+    // The figure is implemented in its own call, concurrently with beat 1, from the spec in the header.
+    // Speech never waits long for code: a beat goes out after a short grace period and the figure follows.
+    let figureDone = false;
+    const figureReady: Promise<void> = figureSpec
+      ? (async () => {
+          const spec = figureSpec;
+          const ask = `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nImplement the figure "${spec.id}" from its spec in the header: ${spec.brief ?? ""} State ${JSON.stringify(spec.state ?? {})}; ${spec.stateDoc ?? ""}${spec.parts ? `; parts ${spec.parts.join(", ")}` : ""}. Return exactly one COMPONENT block, its first line the spec as JSON (id, title, width, height, state, stateDoc, parts) and the code after it. It must be alive at rest, animate every state change, and sound when the topic sounds.`;
+          try {
+            for await (const item of streamBlocks(figureStreamer, PLANNER_SYSTEM, ask, "low")) {
+              if (item.type === "COMPONENT") {
+                const parsed = parseComponentBlock(item.body);
+                if ("element" in parsed) components.set(parsed.element.id, parsed.element);
+              }
+            }
+          } catch {
+            // Without the figure, beats fall back to their instant elements.
+          }
+          figureDone = true;
+        })()
+      : Promise.resolve();
+    const figureGrace = (ms: number) => Promise.race([figureReady, new Promise<void>((r) => setTimeout(r, ms))]);
+    /** After a beat went out showing the figure by reference, send the code once it exists. */
+    const lateFigure = async function* (beat: Beat): AsyncGenerator<PlannerEvent> {
+      if (!figureSpec || figureDone) return;
+      const refers = beat.ops.some((o) => o.op === "show" && o.element.kind === "component" && o.element.id === figureSpec!.id && !o.element.code);
+      if (!refers) return;
+      await figureReady;
+      const element = components.get(figureSpec.id);
+      if (element) yield { type: "component", element };
+    };
 
     // Fast tier at low effort. Beats 1 and 2 are written at the same time, both from the header
     // alone: beat 1 while the learner reads the calibration question, beat 2 (which carries the
@@ -552,9 +610,9 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
     const askFor = (index: number, answer: string | null = null): string => {
       const entry = header!.outline[index]!;
       if (index === 0) {
-        return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only. It must use only instantly rendered elements and work regardless of the answer to the opening question.`;
+        return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only. It must work regardless of the answer to the opening question. Besides the figure, use only instantly rendered elements.${figureNote(figureSpec)}`;
       }
-      return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only, following the outline. ${header!.outline[0]!.id} is being written separately with instant elements only, so do not reference its elements; start this beat with what it needs on the board. If the lesson calls for a figure written as code, write its COMPONENT block now and show it in this beat.${calibrationNote(header!, answer)}`;
+      return `Topic: ${topic}\n\nHere is the header you wrote:\n${headerBlock}\n\nWrite the BEAT block for ${entry.id} only, following the outline. ${header!.outline[0]!.id} is being written separately; apart from the figure, do not reference its elements, and start this beat with what it needs on the board.${figureNote(figureSpec).replace("Show it with", "It is already on the board from the first beat, so do not show it again unless you cleared it; drive it with")}${calibrationNote(header!, answer)}`;
     };
     const collect = async (ask: string, effort: "low" | "medium" | "high" = "low"): Promise<StreamItem[]> => {
       const out: StreamItem[] = [];
@@ -575,16 +633,20 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
         return false;
       }
       if (item.type !== "BEAT") return false;
+      await figureGrace(FIGURE_GRACE_MS);
       let got = false;
+      let sent: Beat | null = null;
       for await (const ev of handleBeat(item.body, index)) {
         if (ev.type === "beat") {
           fastBeats.push(ev.beat);
           got = true;
+          sent = ev.beat;
           yield { ...ev, calibrationSeen };
           continue;
         }
         yield ev;
       }
+      if (sent) yield* lateFigure(sent);
       return got;
     };
 
@@ -619,6 +681,7 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       }
     }
 
+    await figureReady;
     if (total > fastBeats.length) {
       // Slow tier. Beat 3 alone at medium effort, started the moment beat 2 is done, so it lands
       // before beat 2 runs out; the rest at high effort in parallel, processed after beat 3 so

@@ -166,12 +166,13 @@ describe("component blocks", () => {
     const { raw: fixed, dropped } = attachComponents(raw, components);
     expect(dropped).toEqual(["GHOST"]);
     const ops = (fixed as { ops: Array<Record<string, unknown>> }).ops;
-    expect(ops).toHaveLength(2);
+    expect(ops).toHaveLength(3);
     expect(ops[0]).toMatchObject({ element: { code, state: { length: 2 }, parts: ["bob"] } });
-    const check = ops[1] as { onCorrect: Array<{ element: { code: string } }> };
+    expect(ops[1]).toMatchObject({ element: { kind: "component", id: "GHOST" } });
+    const check = ops[2] as { onCorrect: Array<{ element: { code: string } }> };
     expect(check.onCorrect[0]!.element.code).toBe(code);
     const r = normalizeBeat(fixed, 1, new Set(), "b2");
-    expect(r.beat?.ops.map((o) => o.op)).toEqual(["show", "check"]);
+    expect(r.beat?.ops.map((o) => o.op)).toEqual(["show", "show", "check"]);
   });
 
   it("extractBlocks keeps component code verbatim", () => {
@@ -266,3 +267,61 @@ describe("sentences and pacing", () => {
     expect(stats).toMatchObject({ says: 5, keys: 1, maxWords: 9 });
   });
 });
+
+describe("the lesson's figure", () => {
+  it("is implemented in its own call from the header's spec and attached to the beat that shows it by reference", async () => {
+    const spec = { id: "P", title: "A string", width: 960, height: 540, state: { tension: 1 }, stateDoc: "tension: 0.5 to 2", parts: ["string"], brief: "a string that vibrates" };
+    const code = '<svg><line id="string"/></svg>\n<script>tma.onFrame(function(){});</script>';
+    const started: string[] = [];
+    const streamer: PlannerStreamer = async function* (_system, user) {
+      const which = /HEADER block only/.test(user) ? "header" : /Implement the figure "P"/.test(user) ? "figure" : /for b1 only/.test(user) ? "b1" : /for b2 only/.test(user) ? "b2" : "rest";
+      started.push(which);
+      let text = "";
+      if (which === "header") text = block("HEADER", { ...header, figure: spec });
+      if (which === "figure") {
+        await new Promise((r) => setTimeout(r, 10));
+        text = `===COMPONENT===\n${JSON.stringify({ id: "P", title: "A string", width: 960, height: 540, state: { tension: 1 }, stateDoc: "tension: 0.5 to 2", parts: ["string"] })}\n${code}\n===END===\n`;
+      }
+      if (which === "b1") text = block("BEAT", { ...beat1, ops: [{ op: "show", id: "b1.e0", element: { kind: "component", id: "P" } }, ...beat1.ops] });
+      if (which === "b2") text = block("BEAT", beat2);
+      for (const piece of text.match(/.{1,40}/gs) ?? []) yield { kind: "text", text: piece };
+      yield { kind: "final", model: "fake", inputTokens: 1, outputTokens: 1, refusal: false };
+    };
+    const events = [];
+    for await (const ev of planLesson("standing waves", "plan-f", streamer)) events.push(ev);
+    expect(started.slice(0, 2)).toEqual(["header", "figure"]);
+    const b1 = events.find((e) => e.type === "beat");
+    expect(b1 && b1.type === "beat" ? b1.beat.ops[0] : null).toMatchObject({ op: "show", element: { kind: "component", id: "P", code, parts: ["string"] } });
+  });
+});
+
+describe("a slow figure", () => {
+  it("does not hold beat 1 past the grace period; the code follows as its own event", async () => {
+    const spec = { id: "P", title: "A string", width: 960, height: 540, state: {}, stateDoc: "", parts: [], brief: "a string" };
+    const code = "<svg><line id=\"s\"/></svg>";
+    const streamer: PlannerStreamer = async function* (_system, user) {
+      const which = /HEADER block only/.test(user) ? "header" : /Implement the figure "P"/.test(user) ? "figure" : /for b1 only/.test(user) ? "b1" : /for b2 only/.test(user) ? "b2" : "rest";
+      let text = "";
+      if (which === "header") text = block("HEADER", { ...header, figure: spec });
+      if (which === "figure") {
+        await new Promise((r) => setTimeout(r, 120));
+        text = `===COMPONENT===\n${JSON.stringify({ id: "P", width: 960, height: 540 })}\n${code}\n===END===\n`;
+      }
+      if (which === "b1") text = block("BEAT", { ...beat1, ops: [{ op: "show", id: "b1.e0", element: { kind: "component", id: "P" } }, ...beat1.ops] });
+      if (which === "b2") text = block("BEAT", beat2);
+      for (const piece of text.match(/.{1,40}/gs) ?? []) yield { kind: "text", text: piece };
+      yield { kind: "final", model: "fake", inputTokens: 1, outputTokens: 1, refusal: false };
+    };
+    const { calibrationHandle } = await import("./planner");
+    const events = [];
+    for await (const ev of planLesson("standing waves", "plan-g", streamer, calibrationHandle(), { figureGraceMs: 10 })) events.push(ev);
+    const kinds = events.map((e) => e.type);
+    const b1 = events.find((e) => e.type === "beat");
+    expect(b1 && b1.type === "beat" ? (b1.beat.ops[0] as { element: { code?: string } }).element.code : "x").toBeUndefined();
+    expect(b1 && b1.type === "beat" ? b1.issues : []).toContain("figure P shown before its code arrived");
+    expect(kinds.indexOf("component")).toBeGreaterThan(kinds.indexOf("beat"));
+    const comp = events.find((e) => e.type === "component");
+    expect(comp && comp.type === "component" ? comp.element.code : null).toBe(code);
+  });
+});
+

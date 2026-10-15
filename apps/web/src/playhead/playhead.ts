@@ -5,6 +5,7 @@ import {
   type Beat,
   type Branch,
   type CheckOp,
+  type Component,
   type ElementRef,
   type Lesson,
   type LessonHeader,
@@ -164,6 +165,8 @@ export class Playhead {
   private reviewHold: { requestId: string; timer: ReturnType<typeof setTimeout> } | null = null;
   /** Component states when the answer began; the Tutor's changes to them are undone when it ends. */
   private answerBaseStates = new Map<string, Record<string, unknown>>();
+  /** Figures whose code arrived before the beat that shows them. */
+  private pendingComponents = new Map<string, Component>();
   /** Where in history the current answer began, so the record can say what it said and drew. */
   private answerStartIndex = 0;
   private fillerTimer: ReturnType<typeof setTimeout> | null = null;
@@ -267,6 +270,37 @@ export class Playhead {
         void this.run();
       }
     }
+  }
+
+  /** A figure's code, arriving after a beat that shows it by reference. It lands on the board now or when the show op plays. */
+  attachComponent(element: Component): void {
+    if (!element.code) return;
+    const onBoard = this.state.board.elements[element.id];
+    if (onBoard && onBoard.kind === "component") {
+      if (onBoard.code) return;
+      const patch: Record<string, unknown> = { code: element.code, width: element.width ?? 960, height: element.height ?? 540 };
+      if (element.parts) patch["parts"] = element.parts;
+      if (element.stateDoc) patch["stateDoc"] = element.stateDoc;
+      if (element.title && !onBoard.title) patch["title"] = element.title;
+      // State the beat already set wins over the figure's defaults.
+      if (element.state) patch["state"] = { ...element.state, ...(onBoard.state ?? {}) };
+      const item: QueueItem = { op: { op: "update", id: `figure.${element.id}.${this.history.length}`, target: element.id, patch }, origin: "beat" };
+      this.history.push(item);
+      this.set({ board: applyOp(this.state.board, item.op) });
+      return;
+    }
+    this.pendingComponents.set(element.id, element);
+  }
+
+  /** A show of a figure by reference takes the code that arrived for it. The op in history is replaced so replay agrees. */
+  private withFigureCode(item: QueueItem): QueueItem {
+    const op = item.op;
+    if (op.op !== "show" || op.element.kind !== "component" || op.element.code) return item;
+    const pending = this.pendingComponents.get(op.element.id);
+    if (!pending) return item;
+    const element: Component = { ...pending, ...op.element, code: pending.code, state: { ...(pending.state ?? {}), ...(op.element.state ?? {}) } };
+    item.op = { ...op, element };
+    return item;
   }
 
   /** A replan: the outline changes from `fromIndex`, and beats from there will arrive again. */
@@ -418,6 +452,7 @@ export class Playhead {
         }
       }
       this.queue.shift();
+      this.withFigureCode(item);
       this.history.push(item);
       await this.execute(item, token);
     }
@@ -978,9 +1013,9 @@ export class Playhead {
         case "clear":
         case "clear_highlights":
         case "pin": {
-          const item: QueueItem = { op, origin: "beat" };
+          const item = this.withFigureCode({ op, origin: "beat" });
           this.history.push(item);
-          this.set({ board: applyOp(this.state.board, op) });
+          this.set({ board: applyOp(this.state.board, item.op) });
           break;
         }
         case "check":

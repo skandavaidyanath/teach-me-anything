@@ -133,3 +133,11 @@ What the log showed: the opening answer reached nobody (decision 43). The script
 
 What changed: decision 43 (the opening question as the start, the opening pass, orient after the hook, no term before its definition, key lines framed by silence) and decision 44 (the board looks like Manim: palette, easing, animation vocabulary, every primitive animated). A fresh canvas pass was also asked for, with 3Blue1Brown and Veritasium as the look to reach, and open-source projects searched for reusable style: Manim itself was the one worth taking from.
 
+## Fourier transform lesson, reviewed 2026-10-15
+
+Verdict: a better start, but still nothing happening on the canvas, and a key line thirty seconds in while the background was still being set, which was not worth emphasizing. The reviewer wants an animated piano, someone playing it, the sine wave and the jagged wave moving, sound effects: the lesson felt one-dimensional and flat, "just following text".
+
+What the log showed: the Planner had written the 3Blue1Brown winding machine, animated, with a state the beats drove, but it arrived in beat 2; beat 1 was a still scene of the jagged line for 35 s of speech, with the key line ("most people say the notes are gone now, blended like three paints") in it. Changed in decision 45: the figure is designed in the header, built concurrently with beat 1, on the board from the first sentence, alive at rest, with sound; the opening has no key line.
+
+Measured after the change, same topic in the browser: the header took 15 s (it now designs the figure too), beat 1 and the figure were both ready at 37.5 s, the opening pass took 2.7 s, and the first sentence played 23 s after the click with the figure on the board from that sentence: the chord's wave travelling, its three notes drawn beneath in blue, gold, and green, sound calls in the code, no key line until the first reveal. Beat 3 at 59 s. The wait after the click is beat 1's writing time and is the number to bring down next.
+
