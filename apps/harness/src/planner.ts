@@ -1,4 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
+
+/** An API failure in words a learner can act on; the raw error stays in the harness log. */
+export function describeApiError(err: unknown): string {
+  if (err instanceof Anthropic.APIError) {
+    if (/credit balance/i.test(err.message)) return "The Anthropic account behind this tutor is out of credits. Top it up under Plans & Billing, then reload.";
+    if (err.status === 401) return "The Anthropic API key was rejected. Check ANTHROPIC_API_KEY in .env.";
+    if (err.status === 429) return "The Anthropic API is rate limiting this account right now. Try again in a moment.";
+    if (err.status === 529 || (err.status ?? 0) >= 500) return "The Anthropic API is having trouble right now. Try again in a moment.";
+    return `${err.status ?? ""} ${err.message}`.trim();
+  }
+  return err instanceof Error ? err.message : String(err);
+}
 import { mergeSortLesson } from "@tma/content";
 import { BeatSchema, type Beat, type LessonHeader, type Op, type OutlineEntry, type RecordEntry, ComponentSchema, type Component } from "@tma/schema";
 import { jsonrepair } from "jsonrepair";
@@ -768,7 +780,7 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
     }
     yield { type: "done", ...meta };
   } catch (err) {
-    const message = err instanceof Anthropic.APIError ? `${err.status ?? ""} ${err.message}`.trim() : err instanceof Error ? err.message : String(err);
+    const message = describeApiError(err);
     yield { type: "error", message };
   }
 }
