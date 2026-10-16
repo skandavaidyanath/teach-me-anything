@@ -195,11 +195,38 @@ export function parseLooseJson(body: string): { ok: true; value: unknown; repair
   try {
     return { ok: true, value: JSON.parse(trimmed), repaired: false };
   } catch (first) {
+    const stray = dropStrayClosers(trimmed);
+    if (stray !== null) return { ok: true, value: stray, repaired: true };
     try {
       return { ok: true, value: JSON.parse(jsonrepair(trimmed)), repaired: true };
     } catch {
       return { ok: false, error: (first as Error).message };
     }
+  }
+}
+
+/**
+ * The model's commonest slip in a deeply nested op is one closing brace too many after an
+ * element's item list, which jsonrepair does not fix. JSON.parse says where it choked; if the
+ * offending character is a closer, drop it and try again, a few times at most.
+ */
+export function dropStrayClosers(text: string, attempts = 3): unknown | null {
+  let current = text;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return JSON.parse(current);
+    } catch (err) {
+      const m = /position (\d+)/.exec((err as Error).message);
+      if (!m) return null;
+      const at = Number(m[1]);
+      if (current[at] !== "}" && current[at] !== "]") return null;
+      current = current.slice(0, at) + current.slice(at + 1);
+    }
+  }
+  try {
+    return JSON.parse(current);
+  } catch {
+    return null;
   }
 }
 

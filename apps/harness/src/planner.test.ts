@@ -349,3 +349,15 @@ describe("header slips", () => {
   });
 });
 
+describe("parseLooseJson", () => {
+  it("drops a stray closing brace after a nested item list, the slip jsonrepair cannot fix", () => {
+    const body = '{"id":"b1","title":"T","ops":[{"op":"show","id":"b1.e1","element":{"kind":"scene","id":"S","width":400,"height":300,"items":[{"id":"a","type":"dot","cx":1,"cy":2}]}}},{"op":"say","id":"b1.s1","text":"Hi."}]}';
+    const r = parseLooseJson(body);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.repaired).toBe(true);
+      expect((r.value as { ops: unknown[] }).ops).toHaveLength(2);
+    }
+  });
+});
+
