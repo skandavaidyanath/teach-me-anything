@@ -325,3 +325,27 @@ describe("a slow figure", () => {
   });
 });
 
+describe("header slips", () => {
+  it("coerces a header wrapped in an array, a figure given as a list, and a state given as a list", async () => {
+    const { coerceHeader } = await import("./planner");
+    const raw = [{ ...header, figure: [{ id: "P", title: "Fig", state: [], parts: "a, b" }] }];
+    const fixed = coerceHeader(raw) as { figure: { id: string; state: unknown; parts: unknown } };
+    expect(fixed.figure).toMatchObject({ id: "P", state: {}, parts: ["a", "b"] });
+  });
+
+  it("asks the planner to fix a header that still does not validate, and logs the raw text", async () => {
+    const calls: string[] = [];
+    const streamer: PlannerStreamer = async function* (_system, user) {
+      calls.push(user.slice(0, 40));
+      const text = /HEADER block only/.test(user) ? block("HEADER", { title: "no topic", outline: "oops" }) : /failed validation/.test(user) ? block("HEADER", header) : /for b1 only/.test(user) ? block("BEAT", beat1) : block("BEAT", beat2);
+      for (const piece of text.match(/.{1,40}/gs) ?? []) yield { kind: "text", text: piece };
+      yield { kind: "final", model: "fake", inputTokens: 1, outputTokens: 1, refusal: false };
+    };
+    const events = [];
+    for await (const ev of planLesson("binary search", "plan-h", streamer)) events.push(ev);
+    expect(events[0]).toMatchObject({ type: "diagnostic" });
+    expect(events.find((e) => e.type === "header")).toBeTruthy();
+    expect(calls.some((c) => c.startsWith("This HEADER JSON failed validation"))).toBe(true);
+  });
+});
+

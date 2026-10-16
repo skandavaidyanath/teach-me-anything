@@ -132,6 +132,29 @@ const HeaderBlockSchema = z.object({
   figure: FigureSpecSchema.optional(),
 });
 
+/** Common slips in a header: the whole thing wrapped in an array, the figure given as a list, its state as a list. */
+export function coerceHeader(raw: unknown): unknown {
+  let h: unknown = raw;
+  if (Array.isArray(h)) h = h.find((x) => x && typeof x === "object" && !Array.isArray(x)) ?? h;
+  if (!h || typeof h !== "object" || Array.isArray(h)) return h;
+  const out: Record<string, unknown> = { ...(h as Record<string, unknown>) };
+  if (Array.isArray(out["figure"])) out["figure"] = (out["figure"] as unknown[]).find((x) => x && typeof x === "object" && !Array.isArray(x));
+  const fig = out["figure"];
+  if (fig && typeof fig === "object" && !Array.isArray(fig)) {
+    const f: Record<string, unknown> = { ...(fig as Record<string, unknown>) };
+    if (Array.isArray(f["state"])) f["state"] = {};
+    if (typeof f["parts"] === "string") f["parts"] = (f["parts"] as string).split(/[\s,]+/).filter(Boolean);
+    if (typeof f["stateDoc"] !== "string" && f["stateDoc"] !== undefined) f["stateDoc"] = JSON.stringify(f["stateDoc"]);
+    out["figure"] = f;
+  }
+  const cal = out["calibration"];
+  if (Array.isArray(cal) && cal.every((x) => typeof x === "string")) out["calibration"] = { prompt: "Before we start, which of these sounds most like you?", options: cal };
+  if (Array.isArray(out["outline"])) out["outline"] = (out["outline"] as unknown[]).map((b, i) => (typeof b === "string" ? { id: `b${i + 1}`, title: b } : b));
+  return out;
+}
+
+const describeIssues = (error: z.ZodError): string => error.issues.map((i) => `${i.path.join(".") || "header"}: ${i.message}`).join("; ");
+
 const figureNote = (spec: FigureSpec | null): string =>
   spec
     ? `\n\nThe lesson's figure, ${spec.id}${spec.title ? ` ("${spec.title}")` : ""}, is being implemented separately from this spec: state ${JSON.stringify(spec.state ?? {})}; ${spec.stateDoc ?? ""}${spec.parts ? `; parts ${spec.parts.join(", ")}` : ""}. ${spec.brief ?? ""} Show it with {"kind":"component","id":"${spec.id}"} (the code is attached for you), drive it with update ops on those state fields, and highlight its parts.`
@@ -452,6 +475,21 @@ async function* streamBlocks(streamer: PlannerStreamer, system: string, user: st
   for (const b of blocks) yield b;
 }
 
+async function repairHeader(streamer: PlannerStreamer, body: string, why: string): Promise<unknown | null> {
+  const user = `This HEADER JSON failed validation:\n${body}\n\nProblems:\n${why}\n\nReturn the corrected header as a single ===HEADER=== block, following the header format exactly: "figure" is one object, its "state" is an object, "parts" is an array of strings.`;
+  let buffer = "";
+  try {
+    for await (const piece of streamer(PLANNER_SYSTEM, user, "low")) if (piece.kind === "text") buffer += piece.text;
+  } catch {
+    return null;
+  }
+  const { blocks } = extractBlocks(buffer + "\n===END===");
+  const block = blocks.find((b) => b.type === "HEADER");
+  if (!block) return null;
+  const parsed = parseLooseJson(block.body);
+  return parsed.ok ? parsed.value : null;
+}
+
 async function repairBeat(streamer: PlannerStreamer, body: string, errors: string[]): Promise<unknown | null> {
   const user = `This beat JSON failed validation:\n${body}\n\nErrors:\n${errors.map((e) => `- ${e}`).join("\n")}\n\nReturn the corrected beat as a single ===BEAT=== block.`;
   let buffer = "";
@@ -552,13 +590,21 @@ export async function* planLesson(topic: string, lessonId: string, streamer: Pla
       if (block.type === "HEADER") {
         const loose = parseLooseJson(block.body);
         if (!loose.ok) {
+          yield { type: "diagnostic", message: `header: invalid JSON (${loose.error})`, raw: block.body.slice(0, 4000) };
           yield { type: "error", message: `header: invalid JSON (${loose.error})` };
           return;
         }
-        const parsed = HeaderBlockSchema.safeParse(loose.value);
+        let parsed = HeaderBlockSchema.safeParse(coerceHeader(loose.value));
         if (!parsed.success) {
-          yield { type: "error", message: `header: ${parsed.error.issues.map((i) => i.message).join("; ")}` };
-          return;
+          // One chance to fix it: the header is the whole lesson's shape.
+          const why = describeIssues(parsed.error);
+          yield { type: "diagnostic", message: `header did not validate (${why}); asking the planner to fix it`, raw: block.body.slice(0, 4000) };
+          const fixed = await repairHeader(streamer, block.body, why);
+          parsed = HeaderBlockSchema.safeParse(coerceHeader(fixed));
+          if (!parsed.success) {
+            yield { type: "error", message: `header: ${describeIssues(parsed.error)}` };
+            return;
+          }
         }
         header = headerFromBlock(parsed.data, lessonId);
         figureSpec = parsed.data.figure ?? null;
