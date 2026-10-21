@@ -4,7 +4,7 @@ Things seen elsewhere that set a bar for the board. Each entry says what it is, 
 
 ## Engraved plate explainer (Yunfan Ye, 2026-10-07)
 
-Source: https://x.com/realYunfanYe/status/2107963467223457822 (91 s video, "Today it did Chemistry", the 2026 Chemistry Nobel on chirality). Stills in `references/nobel-chirality/`.
+Source: https://x.com/realYunfanYe/status/2107963467223457822 (91 s video, "Today it did Chemistry", the 2026 Chemistry Nobel on chirality). Stills are kept locally in `docs/references/nobel-chirality/`, which is gitignored; the link above is the source.
 
 Why it was shared: the animation style and aesthetics, especially the drawings of the hands and the chemical structures. A target for a more polished version of our SVG format.
 

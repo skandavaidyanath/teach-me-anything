@@ -31,3 +31,6 @@ logs/
 
 # playwright-cli session files
 .playwright-cli/
+
+# visual references (stills from other people's work, kept locally)
+docs/references/
